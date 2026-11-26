@@ -1,0 +1,38 @@
+name: sqlite-knowledge-wiki
+
+x-wiki: &wiki
+  image: sqlite-knowledge-wiki:latest
+  restart: unless-stopped
+  env_file: .env
+  volumes:
+    - wiki-data:/var/www/data
+    - wiki-images:/var/www/html/images
+
+services:
+  wiki:
+    <<: *wiki
+    build:
+      context: .
+      args:
+        MEDIAWIKI_IMAGE: ${MEDIAWIKI_IMAGE:-mediawiki:1.43}
+        SMW_VERSION: ${SMW_VERSION:-~7.4}
+        WIKIBASE_BRANCH: ${WIKIBASE_BRANCH:-REL1_43}
+    environment:
+      # Page views do not run jobs; the jobrunner service does.
+      MW_JOB_RUN_RATE: ${MW_JOB_RUN_RATE:-0}
+    ports:
+      # Bound to loopback by default: put your reverse proxy in front of it.
+      - "${WIKI_BIND:-127.0.0.1:8080}:80"
+
+  jobrunner:
+    <<: *wiki
+    command: jobrunner
+    depends_on:
+      wiki:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
+volumes:
+  wiki-data:
+  wiki-images:
