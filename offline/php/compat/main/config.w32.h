@@ -12,7 +12,11 @@
 #define PHP_BUILD_COMPILER "Zig (clang, MinGW-w64)"
 #define PHP_COMPILER_ID "zig"
 #define PHP_BUILD_ARCH "x64"
-#define PHP_LINKER_MAJOR 14
+/* Not a Microsoft linker. PHP checks at startup that the Visual C++ runtime
+ * DLL it finds loaded matches linker version 14; with any other value it
+ * skips that check, which is right here: this build links Zig's C runtime
+ * statically and loads no vcruntime140.dll. */
+#define PHP_LINKER_MAJOR 0
 #define PHP_LINKER_MINOR 0
 
 #define HAVE_STRNLEN 1
