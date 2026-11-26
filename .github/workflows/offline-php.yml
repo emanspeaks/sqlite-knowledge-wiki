@@ -1,0 +1,45 @@
+# Builds the offline viewer's PHP with Zig alone and runs it on Windows.
+name: offline-php
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [offline-exe]
+    paths: ['offline/php/**', '.github/workflows/offline-php.yml']
+
+env:
+  ZIG_VERSION: 0.17.1
+
+jobs:
+  cross-build:
+    name: Cross-compile on Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install ziglang==$ZIG_VERSION
+      - name: zig build
+        working-directory: offline/php
+        run: python3 -m ziglang build -Doptimize=ReleaseFast --summary all
+      - uses: actions/upload-artifact@v4
+        with:
+          name: php-embed-smoke-cross
+          path: offline/php/zig-out/bin/php-embed-smoke.exe
+
+  windows:
+    name: Build and run on Windows
+    runs-on: windows-latest
+    needs: cross-build
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install ziglang==$env:ZIG_VERSION
+      - name: zig build
+        working-directory: offline/php
+        run: python -m ziglang build -Doptimize=ReleaseFast --summary all
+      - name: Run the natively built program
+        run: offline\php\zig-out\bin\php-embed-smoke.exe
+      - uses: actions/download-artifact@v4
+        with:
+          name: php-embed-smoke-cross
+          path: cross
+      - name: Run the program cross-compiled on Linux
+        run: cross\php-embed-smoke.exe

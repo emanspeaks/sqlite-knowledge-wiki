@@ -1,0 +1,34 @@
+/* main/config.w32.h for the offline viewer's PHP.
+ *
+ * On Windows PHP's configure.js writes this file: the template
+ * win32/build/config.w32.h.in followed by one define per enabled feature.
+ * This is the same thing written by hand, for the extensions build.zig
+ * compiles. Keep the two in step. */
+#include "win32/build/config.w32.h.in"
+
+#define PHP_BUILD_SYSTEM "zig build"
+#define PHP_BUILD_PROVIDER "sqlite-knowledge-wiki"
+#define CONFIGURE_COMMAND "zig build"
+#define PHP_BUILD_COMPILER "Zig (clang, MinGW-w64)"
+#define PHP_COMPILER_ID "zig"
+#define PHP_BUILD_ARCH "x64"
+#define PHP_LINKER_MAJOR 14
+#define PHP_LINKER_MINOR 0
+
+#define HAVE_STRNLEN 1
+#define ZEND_CHECK_STACK_LIMIT 1
+#define HAVE_WSPIAPI_H 1
+#define HAVE_GAI_STRERROR 1
+#define HAVE_IPV6 1
+
+/* ext/date */
+#define HAVE_TIMELIB_CONFIG_H 1
+
+/* ext/pcre, bundled PCRE2 */
+#define HAVE_BUNDLED_PCRE 1
+#define PCRE2_CODE_UNIT_WIDTH 8
+#define PCRE2_STATIC 1
+
+/* ext/standard */
+#define PHP_CONFIG_FILE_SCAN_DIR ""
+#define PHP_USE_PHP_CRYPT_R 1

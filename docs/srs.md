@@ -65,6 +65,10 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 
 %requirement[SRS-028 functional verification=inspection derives=SYS-013] The offline viewer shall ship a prebaked English localisation cache.
 
+%requirement[SRS-029 functional verification=test derives=SYS-012] Thumbnails shall be generated offline with PHP's own image library; ImageMagick shall not be required.
+
+%requirement[SRS-030 interface verification=test derives=SYS-012] Features that need Python (syntax highlighting) shall use the Python found on the system path, or the one named by an environment variable when it is set. The offline viewer shall not supply Python.
+
 ### Media store
 
 %requirement[SRS-040 functional verification=test derives=SYS-014] Uploaded media shall be stored in a single SQLite file, with each file's content split into chunks.
@@ -105,13 +109,15 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 
 %requirement[SRS-080 constraint verification=inspection derives=SYS-003] The image shall be based on the official `mediawiki:1.43` image, with the settings file outside the web root.
 
-%requirement[SRS-081 constraint verification=inspection derives=SYS-018,SYS-019] The PHP runtime of the offline viewer shall be built by the project's own `build.zig` from the official PHP sources, vendored in the repository.
+%requirement[SRS-081 constraint verification=inspection derives=SYS-018,SYS-019] The PHP runtime of the offline viewer shall be built by the project's own `build.zig` from the official signed PHP release, fetched as a dependency pinned by hash in `build.zig.zon`.
 
 %requirement[SRS-082 constraint verification=inspection derives=SYS-018] Every third-party library linked into the offline viewer or the media store shall be vendored at a pinned version and built from source by the project's build.
 
 %requirement[SRS-083 constraint verification=inspection derives=SYS-020] Release builds of the offline viewer shall be code-signed.
 
 %requirement[SRS-084 constraint verification=inspection derives=SYS-015 rationale="The owner controls the host VM."] The wiki container may be granted the capability and device access that FUSE needs.
+
+%requirement[SRS-086 constraint verification=inspection derives=SYS-019] Native components shall build for Windows with the toolchain Zig bundles, without the Microsoft compiler or SDK installed.
 
 %requirement[SRS-085 constraint verification=inspection derives=SYS-021] Requirements shall be kept as Skein items in this repository and `skein check` shall report no problems.
 
@@ -122,5 +128,6 @@ How each requirement is verified: test, analysis, inspection or demonstration, e
 ## Rationale, assumptions and limitations
 
 - The WebView2 runtime is assumed present on the target machines until shown otherwise.
+- Python is assumed to be available on the target machines.
 - The executable is expected to be large; size is not constrained.
 - Media volumes of a terabyte or more are not an initial concern.

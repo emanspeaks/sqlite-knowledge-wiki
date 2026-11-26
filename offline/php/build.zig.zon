@@ -1,0 +1,25 @@
+.{
+    .name = .wiki_php,
+    .fingerprint = 0x11364344cad7a6b5,
+    .version = "8.3.37",
+    .minimum_zig_version = "0.17.1",
+    .dependencies = .{
+        // The official signed release from php.net. Its SHA-256,
+        // 0237af84478b7a7649d3964153f1b8653d622550b846f56d63062de683fb86bb,
+        // matches the one php.net publishes for php-8.3.37.tar.xz.
+        .php = .{
+            .url = "https://www.php.net/distributions/php-8.3.37.tar.xz",
+            .hash = "N-V-__8AAB_azwjXbHduU-VVuIKy9ytZQG5oSydoffK6qpZz",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "sources.zig",
+        "asm",
+        "compat",
+        "patches",
+        "test",
+        "tools",
+    },
+}
