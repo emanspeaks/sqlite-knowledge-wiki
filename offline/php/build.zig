@@ -66,7 +66,7 @@ pub fn build(b: *std.Build) void {
     });
     prepare_mod.addCSourceFile(.{ .file = b.path("tools/prepare_src.c") });
     const prepare = b.addRunArtifact(b.addExecutable(.{ .name = "prepare_src", .root_module = prepare_mod }));
-    prepare.addDirectoryArg(b.dependency("php", .{}).path("php-8.3.37"));
+    prepare.addDirectoryArg(b.dependency("php", .{}).path(""));
     const src = prepare.addOutputDirectoryArg("php-src");
     prepare.addFileArg(b.path("patches/php-8.3-mingw.patch"));
 

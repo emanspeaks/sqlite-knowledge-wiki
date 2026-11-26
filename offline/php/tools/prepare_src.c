@@ -118,6 +118,26 @@ static void copy_tree(const char *src, const char *dst)
 	closedir(d);
 }
 
+/* A release archive holds one top-level directory. Zig normally unpacks a
+ * package without it; where it is still there, step into it. */
+static char *single_subdirectory(const char *dir)
+{
+	DIR *d = opendir(dir);
+	if (!d) die("cannot open directory %s: %s", dir, strerror(errno));
+	char *only = NULL;
+	int entries = 0;
+	struct dirent *e;
+	while ((e = readdir(d)) != NULL) {
+		if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
+		if (++entries > 1) break;
+		only = join(dir, e->d_name);
+	}
+	closedir(d);
+	struct stat st;
+	if (entries != 1 || stat(only, &st) != 0 || !S_ISDIR(st.st_mode)) return NULL;
+	return only;
+}
+
 /* --- strict unified diff --------------------------------------------- */
 
 typedef struct { char **v; size_t n, cap; } lines;
@@ -222,7 +242,8 @@ static void apply_patch(const char *out_dir, const char *patch)
 int main(int argc, char **argv)
 {
 	if (argc < 3) die("usage: prepare_src SRC_DIR OUT_DIR [PATCH_FILE...]");
-	copy_tree(argv[1], argv[2]);
+	char *inner = single_subdirectory(argv[1]);
+	copy_tree(inner ? inner : argv[1], argv[2]);
 	for (int i = 3; i < argc; i++) apply_patch(argv[2], argv[i]);
 	return 0;
 }
