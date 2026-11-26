@@ -9,7 +9,7 @@
         // matches the one php.net publishes for php-8.3.37.tar.xz.
         .php = .{
             .url = "https://www.php.net/distributions/php-8.3.37.tar.xz",
-            .hash = "N-V-__8AAB_azwjXbHduU-VVuIKy9ytZQG5oSydoffK6qpZz",
+            .hash = "N-V-__8AAB_azwh6QpfNTlwG4ZxIEWicOX9v3iDeQU7mvw-h",
         },
     },
     .paths = .{
