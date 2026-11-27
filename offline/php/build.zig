@@ -196,7 +196,9 @@ pub fn build(b: *std.Build) !void {
         convert.addFileArg2(src.path(b, b.fmt("Zend/asm/{s}_x86_64_ms_pe_masm.asm", .{routine})), .{});
         php.addAssemblyFile(convert.addOutputFileArg2(b.fmt("{s}_fcontext.S", .{routine}), .{}));
     }
-    for (system_libs) |name| php.linkSystemLibrary(name, .{});
+    // Windows and MinGW import libraries: pkg-config knows none of them, and on
+    // GitHub's Windows runners the one on the PATH (Strawberry Perl's) fails
+    for (system_libs) |name| php.linkSystemLibrary(name, .{ .use_pkg_config = .no });
 
     for (extensions) |ext| {
         const m = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
@@ -210,7 +212,7 @@ pub fn build(b: *std.Build) !void {
         addPhpIncludes(b, m, includes);
         const flags = try std.mem.concat(arena, []const u8, &.{ &php_flags, ext.flags });
         for (ext.own_sources) |file| m.addCSourceFile(.{ .file = b.path(file), .flags = &library_flags });
-        for (ext.system_libs) |name| m.linkSystemLibrary(name, .{});
+        for (ext.system_libs) |name| m.linkSystemLibrary(name, .{ .use_pkg_config = .no });
         const root = if (ext.package) |package| b.dependency(package, .{}).path(ext.package_dir) else src;
         if (ext.cxx) {
             // -fms-extensions is for PHP's C; the C++ sources get C++17, which ICU's headers need.
