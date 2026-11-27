@@ -12,5 +12,18 @@ indent_style = space
 indent_size = 2
 charset = utf-8
 
-[*.{zig,zig.zon}]
+[*.{py,zig,zig.zon}]
+indent_size = 4
+
+# Go files use tabs; gofmt enforces this and will revert spaces
+[*.go]
+indent_style = tab
+
+# go.mod and go.sum are managed by the Go toolchain (tabs required)
+[go.{mod,sum}]
+indent_style = tab
+
+# VBA sources: the VBE import expects CRLF line endings
+[*.{bas,cls}]
+end_of_line = crlf
 indent_size = 4
