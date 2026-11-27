@@ -1,10 +1,10 @@
 //! The wiki service image's own components for the SBOM: its Debian packages,
-//! its PHP, and the PHP extensions that are not part of PHP. Read from
+//! its PHP, and the PHP extensions installed from PECL. Read from
 //! image/inventory.tsv, which image/inventory.sh writes inside the image
 //! (ci.yml's Server job). Its lines, tab-separated, `#` for comments:
 //!   os       ID VERSION_ID                      (/etc/os-release)
 //!   php      VERSION URL SHA256                 (the php image's PHP_* variables)
-//!   php-ext  NAME VERSION
+//!   php-ext  NAME VERSION                      (`pecl list`)
 //!   deb      NAME VERSION ARCH SOURCE SOURCE_VERSION
 const std = @import("std");
 const entry = @import("sbom_entry.zig");
@@ -94,7 +94,7 @@ pub fn write(arena: Allocator, w: *Io.Writer, inv: Inventory) (Io.Writer.Error |
             .name = e.name,
             .version = e.version,
             .supplier = "PECL",
-            .description = "A PHP extension of the image that is not part of PHP",
+            .description = "A PHP extension of the image, installed from PECL",
             .purl = try arena.print("pkg:generic/pecl/{s}@{s}", .{ e.name, try entry.purlEncode(arena, e.version) }),
             .origin = origin,
         });

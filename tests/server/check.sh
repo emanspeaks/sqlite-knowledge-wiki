@@ -66,8 +66,13 @@ parse() {
         --data-urlencode prop=text --data-urlencode disablelimitreport=1 | jq -r '.parse.text["*"]'
 }
 
-# logged LINE: whether the wiki container's log since it started has LINE
-logged() { $COMPOSE logs --no-color wiki | grep -qF "[wiki] $1"; }
+# logged LINE: whether the wiki container's log since it started has LINE.
+# The log is read whole first: `grep -q` stopping early would fail the pipe.
+logged() {
+    local log
+    log=$($COMPOSE logs --no-color wiki)
+    grep -qF "[wiki] $1" <<< "$log"
+}
 
 # Jobs run in the jobrunner container, so the web container sees what another
 # container's jobs changed (the shared main cache)
