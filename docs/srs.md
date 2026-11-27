@@ -119,6 +119,8 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 
 %requirement[SRS-086 constraint verification=inspection derives=SYS-019] Native components shall build for Windows with the toolchain Zig bundles, without the Microsoft compiler or SDK installed.
 
+%requirement[SRS-087 constraint verification=test derives=SYS-018] The offline PHP shall build its fiber context-switch routines from PHP's own sources; the routines shall not be copied from another project. Fibers shall be covered by the build's tests.
+
 %requirement[SRS-085 constraint verification=inspection derives=SYS-021] Requirements shall be kept as Skein items in this repository and `skein check` shall report no problems.
 
 ## Qualification provisions
