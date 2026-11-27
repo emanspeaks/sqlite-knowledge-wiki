@@ -4,9 +4,11 @@ A containerized team wiki: **MediaWiki 1.43 LTS + Semantic MediaWiki 7.4 + Wikib
 
 | Component | Version |
 | --- | --- |
-| MediaWiki | 1.43 (official `mediawiki:1.43` image, PHP 8.3) |
-| Semantic MediaWiki | `~7.4` from Packagist (build arg `SMW_VERSION`) |
-| Wikibase | branch `REL1_43` with its JavaScript submodules (build arg `WIKIBASE_BRANCH`) |
+| MediaWiki | 1.43.12 (the official `mediawiki` image, by digest; PHP 8.3) |
+| Semantic MediaWiki | 7.4.1 from Packagist (`composer/composer.lock`) |
+| Wikibase | branch `REL1_43` at a pinned commit, with its JavaScript submodules (`WIKIBASE_COMMIT`) |
+
+Building the image needs access to Docker Hub, Wikimedia's Gerrit and Phabricator (Wikibase and its submodules), Packagist and GitHub (the Composer packages), and snapshot.debian.org.
 
 ## Quick start
 
@@ -146,10 +148,10 @@ docker compose exec -u www-data wiki sqlite3 /var/www/data/wiki.sqlite "PRAGMA i
 
 ## Upgrading
 
-Every input of the image is pinned, so a rebuild gives the same wiki until a pin changes: the MediaWiki and Composer images by digest and Wikibase by commit (in the `Dockerfile`), and the Composer packages, Semantic MediaWiki among them, by `composer/composer.lock`. To upgrade:
+Every input of the image is pinned, so a rebuild gives the same wiki until a pin changes: in the `Dockerfile`, the MediaWiki and Composer images by digest, Wikibase by commit, and the Debian packages it installs by a snapshot of Debian's archive (`DEBIAN_SNAPSHOT`); and the Composer packages, Semantic MediaWiki among them, by `composer/composer.lock`. To upgrade:
 
 1. Take a backup.
-2. Change the pins in the `Dockerfile`: `MEDIAWIKI_IMAGE` to the new tag and its digest (`docker buildx imagetools inspect mediawiki:1.43.13` shows it), and `WIKIBASE_COMMIT` to the head of the matching `WIKIBASE_BRANCH` (`git ls-remote https://gerrit.wikimedia.org/r/mediawiki/extensions/Wikibase refs/heads/REL1_43`). For a new MediaWiki release line, also the branch (Wikibase's branches follow MediaWiki's) and, in `composer/composer.local.json`, a Semantic MediaWiki version that supports it.
+2. Change the pins in the `Dockerfile`: `MEDIAWIKI_IMAGE` to the new tag and its digest (`docker buildx imagetools inspect mediawiki:1.43.13` shows it), and `WIKIBASE_COMMIT` to the head of the matching `WIKIBASE_BRANCH` (`git ls-remote https://gerrit.wikimedia.org/r/mediawiki/extensions/Wikibase refs/heads/REL1_43`). Set `DEBIAN_SNAPSHOT` to when the new image was built, or later (`docker image inspect -f '{{.Created}}' mediawiki:1.43.13`). For a new MediaWiki release line, also the branch (Wikibase's branches follow MediaWiki's) and, in `composer/composer.local.json`, a Semantic MediaWiki version that supports it.
 3. Resolve the Composer packages again and keep the new lock:
 
    ```bash
@@ -158,7 +160,14 @@ Every input of the image is pinned, so a rebuild gives the same wiki until a pin
    ```
 
    CI does the same when the lock is missing, and offers the result as the `composer-lock` artifact of the run.
-4. Rebuild and recreate the containers:
+4. List what the new image holds, for the bill of materials:
+
+   ```bash
+   docker run --rm -i --entrypoint sh sqlite-knowledge-wiki:latest -s < image/inventory.sh > image/inventory.csv
+   ```
+
+   The inventory is generated, never edited by hand. CI checks it against the image it builds, and offers a new one as the `image-inventory` artifact when they differ.
+5. Rebuild and recreate the containers:
 
    ```bash
    docker compose build
@@ -193,7 +202,8 @@ A third thing worth knowing: the main object cache is the shared SQLite cache (`
 
 - `sqlite-knowledge-wiki-vX-server.zip`: the files to deploy the wiki service (the image is built where it is deployed, with `docker compose up --build`).
 - the Windows program, as its own zip, with the license text of every third-party component.
-- `sqlite-knowledge-wiki-vX-sbom.cdx.json`: the bill of materials (CycloneDX), with every third-party component's version, license, source and checksum. `zig build sbom` in `offline/php` writes it.
+- `sqlite-knowledge-wiki-vX-sbom.cdx.json`: the bill of materials (CycloneDX), with every third-party component's version, license, source and checksum, the Debian packages of the wiki service's image included. `zig build sbom` in `offline/php` writes it.
+- `sqlite-knowledge-wiki-vX-test-results.toml` and `-coverage.txt`: the results of the release's tests, one per check, and the requirements they verified (`skein coverage --results`).
 - `LICENSE` and `SHA256SUMS`, with `SHA256SUMS.asc`, its detached GPG signature.
 
 To verify a release, import [`SIGNING-KEY.asc`](SIGNING-KEY.asc) (Chasing Daylight release signing, `gpg@chasingdaylight.dev`, fingerprint `9431 3677 98CC D8E2 8BC0 E589 BB30 DEF7 34E5 F690`), then run `gpg --verify SHA256SUMS.asc SHA256SUMS` and `sha256sum -c SHA256SUMS` in the folder of the downloaded files. The Windows program is also signed with Authenticode.

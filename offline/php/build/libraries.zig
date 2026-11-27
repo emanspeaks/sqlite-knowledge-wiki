@@ -301,7 +301,7 @@ pub fn libxml2(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.la
         },
         .flags = &(library_flags ++ [_][]const u8{"-DLIBXML_STATIC"}),
     });
-    m.linkSystemLibrary("bcrypt", .{});
+    m.linkSystemLibrary("bcrypt", .{ .use_pkg_config = .no });
     const lib = b.addLibrary(.{ .name = "xml2", .linkage = .static, .root_module = m });
     lib.installConfigHeader(version);
     return .{

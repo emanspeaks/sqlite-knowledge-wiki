@@ -10,6 +10,7 @@
 .vscode/*
 *.code-workspace
 .editorconfig
+.cspell.jsonc
 .envrc
 .gitignore
 # the local checks script, which runs what CI runs

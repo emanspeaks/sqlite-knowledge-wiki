@@ -22,7 +22,7 @@ A team wiki (MediaWiki with Semantic MediaWiki and Wikibase) on SQLite, in two p
 
 - Third-party code is built from the official release of a pinned version, fetched at build time and checked against the hash in `offline/php/build.zig.zon`; fetched sources are never committed. Each fetched component has an entry in `offline/php/components.zig` (the build refuses one without), which the SBOM and the license texts come from.
 - Prebuilt binaries are accepted only from the software's official publisher.
-- The wiki service's image is pinned the same way: images by digest and Wikibase by commit in the `Dockerfile`, Composer packages by `composer/composer.lock`. A new pin comes with a new lock (README, "Upgrading"); CI's Server job writes one as an artifact when it is missing, since no machine here runs Docker.
+- The wiki service's image is pinned the same way: images by digest and Wikibase by commit in the `Dockerfile`, Composer packages by `composer/composer.lock`, Debian packages by `DEBIAN_SNAPSHOT`. A new pin comes with a new lock and a new `image/inventory.csv`, which is generated and never edited (README, "Upgrading"); CI's Server job writes each as an artifact when it is missing or stale, since no machine here runs Docker.
 - Zig, built with the pinned official release (0.17.1, `ZIG_VERSION` in `ci.yml`), for build steps and tools. Scratch scripts an agent writes to analyze something may be in any language and stay in its scratchpad, never committed.
 - Never run a command that downloads or installs software without asking first, package managers included (markdownlint through `npx` excepted). The build's own fetch of the pinned releases is not such a command.
 - The repository owner is `emanspeaks` in every file, issue and pull request; write `@emanspeaks` only to ask for his input.
@@ -59,7 +59,7 @@ A team wiki (MediaWiki with Semantic MediaWiki and Wikibase) on SQLite, in two p
 
 ## Checks before a pull request
 
-Tests cite the requirements they verify (`// verifies:` in `offline/php/test/smoke.php`, `# verifies:` in `tests/server/check.sh`), and `docs/test-procedures.md` holds them as procedures; a new check of a requirement adds both. `bash tools/agent/check.sh` runs what CI runs: the version, `zig fmt --check`, markdownlint, `skein check`, the PHP build and its test script (`--quick` skips the build, which takes tens of minutes the first time). CI does not run on pull requests into `dev` (only on those into `main`, and when started by hand: `gh workflow run ci.yml --ref BRANCH`), so these checks are what stands between a change and `dev`; say in the pull request which were run.
+Tests cite the requirements they verify (`// verifies:` in `offline/php/test/smoke.php`, `# verifies:` in `tests/server/check.sh`), and `docs/test-procedures.md` holds them as procedures; a new check of a requirement adds both. Every check records a Skein result (`tests/result.sh`), which CI's Results job turns into the coverage a release publishes. `bash tools/agent/check.sh` runs what CI runs: the version, `zig fmt --check`, markdownlint, `skein check`, the PHP build and its test script (`--quick` skips the build, which takes tens of minutes the first time). CI does not run on pull requests into `dev` (only on those into `main`, and when started by hand: `gh workflow run ci.yml --ref BRANCH`), so these checks are what stands between a change and `dev`; say in the pull request which were run.
 
 ## Traps met before
 

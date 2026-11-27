@@ -13,3 +13,4 @@
 docs/*
 .skein/*
 standards/*
+verification/*

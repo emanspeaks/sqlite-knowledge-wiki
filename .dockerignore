@@ -9,5 +9,6 @@ docker-compose.yml
 docs/
 standards/
 offline/
+image/
 tools/
 tests/

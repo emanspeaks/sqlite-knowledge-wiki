@@ -22,6 +22,12 @@ read_only = true
 order = ["D", "P", "B", "U", "F"]
 # milestone = "pdr"
 
+# The results people record with `skein result` (the inspections of
+# docs/test-procedures.md). CI's tests' results are not kept: a release
+# publishes those of its run (test-results.toml).
+[results]
+paths = ["verification/results"]
+
 # Tests cite the software requirements they verify, in comments: `// verifies: SRS-001`
 # in the offline PHP's test script, `# verifies: SRS-001` in the wiki service's.
 [[citations]]

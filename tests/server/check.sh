@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 # check.sh: tests a running wiki service through its API, as ci.yml's Server
 # job runs it after `docker compose up`. Needs curl and jq.
-#   check.sh write      logs in, edits, and checks that queries see the edits
-#   check.sh read       checks what `write` made is there (after a restart)
-#   check.sh read-only  the same reads, and that edits are refused
+#   check.sh write           the first run installed the wiki; logs in, edits,
+#                            and checks that queries see the edits
+#   check.sh read            after a restart: the schema update ran, nothing was
+#                            installed again, and what `write` made is there
+#   check.sh read-no-update  the same with MW_AUTO_UPDATE off: no update ran
+#   check.sh read-only       the reads, and that logins and edits are refused
 # Environment: WIKI (base URL, default http://localhost:8080), ADMIN_USER,
-# ADMIN_PASSWORD, and COMPOSE (the compose command, default `docker compose`).
+# ADMIN_PASSWORD, COMPOSE (the compose command, default `docker compose`), and
+# RESULTS: a Skein results file each check is appended to (tests/result.sh).
 #
 # verifies: SRS-001 (MediaWiki 1.43, Semantic MediaWiki, Wikibase repo and client)
 # verifies: SRS-002 (the SQLite files in the data directory)
 # verifies: SRS-003 (the first-run install and its admin account)
 # verifies: SRS-004 (the secret key kept in the data volume)
 # verifies: SRS-005 (the staged update on a fresh database)
+# verifies: SRS-006 (the update on later runs, unless MW_AUTO_UPDATE is off)
 # verifies: SRS-008 (the jobrunner service runs the queue)
 # verifies: SRS-009 (Wikibase properties outside SMW's Property namespace)
 # verifies: SRS-010 (read-only mode)
@@ -24,12 +29,16 @@ set -euo pipefail
 WIKI=${WIKI:-http://localhost:8080}
 COMPOSE=${COMPOSE:-docker compose}
 API="$WIKI/api.php"
+RESULTS=${RESULTS:-}
+here=$(cd "$(dirname "$0")" && pwd)
+mode=${1:-}
 jar=$(mktemp)
 trap 'rm -f "$jar"' EXIT
 failures=0
 
-fail() { echo "FAIL: $*"; failures=$((failures + 1)); }
-pass() { echo "ok:   $*"; }
+record() { [ -z "$RESULTS" ] || bash "$here/../result.sh" "$RESULTS" "$mode: $2" tests/server/check.sh "$1" "${3:-}"; }
+fail() { echo "FAIL: $*"; failures=$((failures + 1)); record fail "${1%%:*}" "$*"; }
+pass() { echo "ok:   $*"; record pass "$*"; }
 get() { curl -fsS -b "$jar" -c "$jar" -G "$API" --data-urlencode format=json "$@"; }
 post() { curl -fsS -b "$jar" -c "$jar" "$API" --data-urlencode format=json "$@"; }
 
@@ -55,6 +64,14 @@ edit() {
 parse() {
     get --data-urlencode action=parse --data-urlencode "text=$1" --data-urlencode contentmodel=wikitext \
         --data-urlencode prop=text --data-urlencode disablelimitreport=1 | jq -r '.parse.text["*"]'
+}
+
+# logged LINE: whether the wiki container's log since it started has LINE.
+# The log is read whole first: `grep -q` stopping early would fail the pipe.
+logged() {
+    local log
+    log=$($COMPOSE logs --no-color wiki)
+    grep -qF "[wiki] $1" <<< "$log"
 }
 
 # Jobs run in the jobrunner container, so the web container sees what another
@@ -104,8 +121,9 @@ check_files() {
         && pass "the Wikibase tables (staged update)" || fail "no Wikibase tables"
 }
 
-case "${1:-}" in
+case "$mode" in
     write)
+        logged "First-run setup complete" && pass "the first run installed the wiki" || fail "first run: no 'First-run setup complete' in the log"
         login
         edit "Hello" "Hello world, '''first''' page."
         edit "Property:Has mass" "[[Has type::Number]]"
@@ -126,8 +144,15 @@ case "${1:-}" in
         check_files
         ;;
     read)
+        ! logged "No database" && pass "a later run installs nothing" || fail "installed again: 'No database' in the log"
+        logged "Running update.php" && pass "a later run updates the schema" || fail "update: no 'Running update.php' in the log"
         check_reads
         check_files
+        ;;
+    read-no-update)
+        logged "MW_AUTO_UPDATE is off: skipping update.php" && ! logged "Running update.php" \
+            && pass "no update with MW_AUTO_UPDATE off" || fail "MW_AUTO_UPDATE=false: the update was not skipped"
+        check_reads
         ;;
     read-only)
         check_reads
@@ -145,7 +170,7 @@ case "${1:-}" in
         [ "$result" = readonly ] && pass "edits refused when read-only" || fail "read-only edit: $result"
         ;;
     *)
-        echo "check.sh: write | read | read-only" >&2
+        echo "check.sh: write | read | read-no-update | read-only" >&2
         exit 2
         ;;
 esac
