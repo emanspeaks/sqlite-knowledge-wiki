@@ -246,10 +246,10 @@ jobs:
           # the SBOM needs the Composer lock and the image's inventory, which
           # the Server job writes when they are missing; the Package job then
           # fails, without blocking the tests here
-          if [ -f ../../composer/composer.lock ] && [ -f ../../image/inventory.tsv ]; then
+          if [ -f ../../composer/composer.lock ] && [ -f ../../image/inventory.csv ]; then
             zig build sbom -Dversion="$VERSION" --prefix zig-out/release
           else
-            echo "::warning::composer/composer.lock or image/inventory.tsv is not committed: no SBOM"
+            echo "::warning::composer/composer.lock or image/inventory.csv is not committed: no SBOM"
           fi
 
       - name: Stage
@@ -343,7 +343,7 @@ jobs:
   # MW_AUTO_UPDATE off, and read-only mode. The image is built to be tested,
   # not published. Without a committed Composer lock it resolves one, uploads
   # it as the composer-lock artifact, and fails; likewise when the image's
-  # packages are not what image/inventory.tsv lists (the image-inventory
+  # packages are not what image/inventory.csv lists (the image-inventory
   # artifact).
   server:
     name: Server
@@ -383,12 +383,12 @@ jobs:
       - name: The image's inventory
         id: inventory
         run: |
-          docker run --rm -i --entrypoint sh sqlite-knowledge-wiki:latest -s < image/inventory.sh > inventory.tsv
-          if [ -f image/inventory.tsv ] && cmp -s image/inventory.tsv inventory.tsv; then
-            echo "the image holds what image/inventory.tsv lists: $(grep -c '^deb' inventory.tsv) Debian packages"
+          docker run --rm -i --entrypoint sh sqlite-knowledge-wiki:latest -s < image/inventory.sh > inventory.csv
+          if [ -f image/inventory.csv ] && cmp -s image/inventory.csv inventory.csv; then
+            echo "the image holds what image/inventory.csv lists: $(grep -c '^deb' inventory.csv) Debian packages"
           else
-            echo "::warning::the image's packages are not what image/inventory.tsv lists"
-            [ ! -f image/inventory.tsv ] || diff image/inventory.tsv inventory.tsv || true
+            echo "::warning::the image's packages are not what image/inventory.csv lists"
+            [ ! -f image/inventory.csv ] || diff image/inventory.csv inventory.csv || true
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -396,7 +396,7 @@ jobs:
         if: steps.inventory.outputs.changed == 'true'
         with:
           name: image-inventory
-          path: inventory.tsv
+          path: inventory.csv
           if-no-files-found: error
 
       - name: Configure
@@ -461,7 +461,7 @@ jobs:
           INVENTORY: ${{ steps.inventory.outputs.changed }}
         run: |
           [ "$LOCK" != new ] || echo "::error::commit the composer-lock artifact of this run as composer/composer.lock"
-          [ "$INVENTORY" != true ] || echo "::error::commit the image-inventory artifact of this run as image/inventory.tsv"
+          [ "$INVENTORY" != true ] || echo "::error::commit the image-inventory artifact of this run as image/inventory.csv"
           exit 1
 
   # Azure Artifact Signing, through the Entra identity whose federated

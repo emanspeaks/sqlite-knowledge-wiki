@@ -10,7 +10,7 @@
 .github/*
 # the Linux prototype of the virtual filesystem, used for profiling
 offline/vfs/*
-# the script that lists the image's packages for image/inventory.tsv (which
+# the script that lists the image's packages for image/inventory.csv (which
 # ships: the SBOM is made from it)
 image/inventory.sh
 # the public key the release job checks its GPG signature against

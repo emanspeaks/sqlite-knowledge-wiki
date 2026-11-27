@@ -163,10 +163,10 @@ Every input of the image is pinned, so a rebuild gives the same wiki until a pin
 4. List what the new image holds, for the bill of materials:
 
    ```bash
-   docker run --rm -i --entrypoint sh sqlite-knowledge-wiki:latest -s < image/inventory.sh > image/inventory.tsv
+   docker run --rm -i --entrypoint sh sqlite-knowledge-wiki:latest -s < image/inventory.sh > image/inventory.csv
    ```
 
-   CI checks the inventory against the image it builds, and offers a new one as the `image-inventory` artifact when they differ.
+   The inventory is generated, never edited by hand. CI checks it against the image it builds, and offers a new one as the `image-inventory` artifact when they differ.
 5. Rebuild and recreate the containers:
 
    ```bash

@@ -1,18 +1,21 @@
 //! The wiki service image's own components for the SBOM: its Debian packages,
 //! its PHP, and the PHP extensions installed from PECL. Read from
-//! image/inventory.tsv, which image/inventory.sh writes inside the image
-//! (ci.yml's Server job). Its lines, tab-separated, `#` for comments:
-//!   os       ID VERSION_ID                      (/etc/os-release)
-//!   php      VERSION URL SHA256                 (the php image's PHP_* variables)
-//!   php-ext  NAME VERSION                      (`pecl list`)
-//!   deb      NAME VERSION ARCH SOURCE SOURCE_VERSION
+//! image/inventory.csv, which image/inventory.sh writes inside the image
+//! (ci.yml's Server job): CSV, unquoted, with the header `header` and its
+//! eight columns on every row. A row's kind says which columns it fills:
+//!   os       name (ID), version (VERSION_ID)          /etc/os-release
+//!   php      version, url, sha256                     the php image's PHP_*
+//!   php-ext  name, version                            `pecl list`
+//!   deb      name, version, arch, source, source_version
 const std = @import("std");
 const entry = @import("sbom_entry.zig");
 
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
-pub const ParseError = error{ InventoryLineMalformed, InventoryIncomplete } || Allocator.Error;
+pub const header = "kind,name,version,arch,source,source_version,url,sha256";
+
+pub const ParseError = error{ InventoryHeaderWrong, InventoryRowMalformed, InventoryIncomplete } || Allocator.Error;
 
 const Extension = struct { name: []const u8, version: []const u8 };
 
@@ -34,49 +37,57 @@ pub const Inventory = struct {
     packages: []const Package,
 };
 
+const Row = struct { kind: []const u8, name: []const u8, version: []const u8, arch: []const u8, source: []const u8, source_version: []const u8, url: []const u8, sha256: []const u8 };
+
+fn splitRow(line: []const u8) error{InventoryRowMalformed}!Row {
+    var fields: [8][]const u8 = undefined;
+    var n: usize = 0;
+    var it = std.mem.splitScalar(u8, line, ',');
+    while (it.next()) |f| : (n += 1) {
+        if (n == fields.len) return error.InventoryRowMalformed;
+        fields[n] = f;
+    }
+    if (n != fields.len) return error.InventoryRowMalformed;
+    return .{ .kind = fields[0], .name = fields[1], .version = fields[2], .arch = fields[3], .source = fields[4], .source_version = fields[5], .url = fields[6], .sha256 = fields[7] };
+}
+
 pub fn parse(arena: Allocator, text: []const u8) ParseError!Inventory {
-    var os: ?[2][]const u8 = null;
-    var php: ?[3][]const u8 = null;
+    var os: ?Row = null;
+    var php: ?Row = null;
     var extensions: std.ArrayList(Extension) = .empty;
     var packages: std.ArrayList(Package) = .empty;
     var lines = std.mem.splitScalar(u8, text, '\n');
+    if (!std.mem.eql(u8, std.mem.trimEnd(u8, lines.first(), "\r"), header)) return error.InventoryHeaderWrong;
     while (lines.next()) |raw| {
         const line = std.mem.trimEnd(u8, raw, "\r");
-        if (line.len == 0 or line[0] == '#') continue;
-        var fields: [6][]const u8 = undefined;
-        var n: usize = 0;
-        var it = std.mem.splitScalar(u8, line, '\t');
-        while (it.next()) |f| : (n += 1) {
-            if (n == fields.len) return error.InventoryLineMalformed;
-            fields[n] = f;
-        }
-        const kind = fields[0];
-        if (std.mem.eql(u8, kind, "os") and n == 3) {
-            os = .{ fields[1], fields[2] };
-        } else if (std.mem.eql(u8, kind, "php") and n == 4) {
-            php = .{ fields[1], fields[2], fields[3] };
-        } else if (std.mem.eql(u8, kind, "php-ext") and n == 3) {
-            try extensions.append(arena, .{ .name = fields[1], .version = fields[2] });
-        } else if (std.mem.eql(u8, kind, "deb") and n == 6) {
-            try packages.append(arena, .{ .name = fields[1], .version = fields[2], .arch = fields[3], .source = fields[4], .source_version = fields[5] });
-        } else return error.InventoryLineMalformed;
+        if (line.len == 0) continue;
+        const r = try splitRow(line);
+        if (std.mem.eql(u8, r.kind, "os")) {
+            os = r;
+        } else if (std.mem.eql(u8, r.kind, "php")) {
+            php = r;
+        } else if (std.mem.eql(u8, r.kind, "php-ext")) {
+            try extensions.append(arena, .{ .name = r.name, .version = r.version });
+        } else if (std.mem.eql(u8, r.kind, "deb")) {
+            try packages.append(arena, .{ .name = r.name, .version = r.version, .arch = r.arch, .source = r.source, .source_version = r.source_version });
+        } else return error.InventoryRowMalformed;
     }
     const o = os orelse return error.InventoryIncomplete;
     const p = php orelse return error.InventoryIncomplete;
     if (packages.items.len == 0) return error.InventoryIncomplete;
     return .{
-        .os_id = o[0],
-        .os_version = o[1],
-        .php_version = p[0],
-        .php_url = p[1],
-        .php_sha256 = p[2],
+        .os_id = o.name,
+        .os_version = o.version,
+        .php_version = p.version,
+        .php_url = p.url,
+        .php_sha256 = p.sha256,
         .extensions = extensions.items,
         .packages = packages.items,
     };
 }
 
 pub fn write(arena: Allocator, w: *Io.Writer, inv: Inventory) (Io.Writer.Error || Allocator.Error)!void {
-    const origin = "the container image: image/inventory.tsv";
+    const origin = "the container image: image/inventory.csv";
     try entry.write(w, .{
         .name = "PHP",
         .version = inv.php_version,

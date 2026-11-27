@@ -17,10 +17,10 @@ npx --yes markdownlint-cli2@0.24.2 "**/*.md" 2>&1 | tail -1
 if [ "${1:-}" != --quick ]; then
   # -j6: Windows runs out of process handles spawning clang for every core
   (cd offline/php && "$Z" build -j6 --summary none && "$Z" build licenses -j6)
-  if [ -f composer/composer.lock ] && [ -f image/inventory.tsv ]; then
+  if [ -f composer/composer.lock ] && [ -f image/inventory.csv ]; then
     (cd offline/php && "$Z" build sbom -j6)
   else
-    echo "check.sh: composer/composer.lock or image/inventory.tsv is not committed; no SBOM (CI's Server job writes them)"
+    echo "check.sh: composer/composer.lock or image/inventory.csv is not committed; no SBOM (CI's Server job writes them)"
   fi
   bash tests/smoke.sh offline/php/zig-out/bin/php-embed-smoke.exe
 fi

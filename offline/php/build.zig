@@ -290,7 +290,7 @@ pub fn build(b: *std.Build) !void {
     sbom_wiki.addFileArg2(sbom_base, .{});
     sbom_wiki.addFileArg2(b.path("../../Dockerfile"), .{});
     sbom_wiki.addFileArg2(b.path("../../composer/composer.lock"), .{});
-    sbom_wiki.addFileArg2(b.path("../../image/inventory.tsv"), .{});
+    sbom_wiki.addFileArg2(b.path("../../image/inventory.csv"), .{});
     const sbom_file = sbom_wiki.addOutputFileArg2("sbom.cdx.json", .{});
     const sbom_step = b.step("sbom", "Write the software bill of materials (CycloneDX JSON)");
     sbom_step.dependOn(&b.addInstallFile(sbom_file, "sbom.cdx.json").step);

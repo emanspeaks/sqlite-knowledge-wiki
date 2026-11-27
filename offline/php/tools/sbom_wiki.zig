@@ -1,11 +1,11 @@
 //! sbom_wiki: completes the SBOM with the wiki service's components.
 //!
-//!   sbom_wiki BASE.json DOCKERFILE COMPOSER.lock INVENTORY.tsv OUT.json
+//!   sbom_wiki BASE.json DOCKERFILE COMPOSER.lock INVENTORY.csv OUT.json
 //!
 //! BASE.json is the SBOM build.zig writes (PHP and its libraries). This adds
 //! the two images and the Wikibase commit pinned in the Dockerfile, every
 //! package of the Composer lock, and the image's Debian packages, PHP and PHP
-//! extensions (image/inventory.tsv), so the SBOM names what the image holds.
+//! extensions (image/inventory.csv), so the SBOM names what the image holds.
 //! Run as a build step, so a changed input is noticed.
 const std = @import("std");
 const entry = @import("sbom_entry.zig");
@@ -133,7 +133,7 @@ pub fn main(init: std.process.Init) !void {
     const arena = init.arena.allocator();
     const args = try init.minimal.args.toSlice(arena);
     if (args.len != 6) {
-        std.log.err("usage: sbom_wiki BASE.json DOCKERFILE COMPOSER.lock INVENTORY.tsv OUT.json", .{});
+        std.log.err("usage: sbom_wiki BASE.json DOCKERFILE COMPOSER.lock INVENTORY.csv OUT.json", .{});
         return error.Usage;
     }
     const cwd = Io.Dir.cwd();

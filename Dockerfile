@@ -3,7 +3,7 @@
 # Every input is pinned: the two images by digest, Wikibase by commit (which
 # pins its submodules), the Composer packages by composer/composer.lock, and
 # Debian's packages by a snapshot. offline/php's `zig build sbom` reads the
-# pins from here, the lock, and image/inventory.tsv.
+# pins from here, the lock, and image/inventory.csv.
 # To move to a newer release, change the pin and regenerate the lock
 # (README, "Upgrading").
 ARG MEDIAWIKI_IMAGE=mediawiki:1.43.12@sha256:f552ec5c19f2d9e24b1a73eefebb899be30a5d82d0ec59837596021cecd977a1
@@ -19,7 +19,7 @@ ARG WIKIBASE_GIT_URL=https://gerrit.wikimedia.org/r/mediawiki/extensions/Wikibas
 ARG COMPOSER_UPDATE=0
 
 # Debian's packages come from snapshot.debian.org as it was at this time, so a
-# later build installs the same versions; image/inventory.tsv lists every
+# later build installs the same versions; image/inventory.csv lists every
 # package of the image. Set it to when the MediaWiki image was built, or after.
 ARG DEBIAN_SNAPSHOT=20261126T120000Z
 
