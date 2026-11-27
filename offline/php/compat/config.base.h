@@ -1,9 +1,9 @@
-/* main/config.w32.h for the offline viewer's PHP.
+/* The part of main/config.w32.h that does not depend on which optional
+ * extensions are built.
  *
- * On Windows PHP's configure.js writes this file: the template
+ * On Windows PHP's configure.js writes config.w32.h: the template
  * win32/build/config.w32.h.in followed by one define per enabled feature.
- * This is the same thing written by hand, for the extensions build.zig
- * compiles. Keep the two in step. */
+ * build.zig writes it the same way: this file, then each extension's lines. */
 #include "win32/build/config.w32.h.in"
 
 #define PHP_BUILD_SYSTEM "zig build"

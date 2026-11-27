@@ -13,6 +13,19 @@ echo 'random ', strlen(random_bytes(16)), ' ', (new Random\Randomizer(new Random
 echo 'serialize ', serialize(['k' => 1.0]), "\n";
 echo 'sprintf ', sprintf('%05.1f|%x|%s', 3.14159, 255, str_pad('é', 4, '-')), "\n";
 
+$loaded = array_map('strtolower', get_loaded_extensions());
+sort($loaded);
+echo 'extensions ', implode(',', $loaded), "\n";
+echo 'bcmath ', bcadd('12345678901234567890', '98765432109876543210'), ' ', bcdiv('1', '3', 10), "\n";
+echo 'calendar ', cal_days_in_month(CAL_GREGORIAN, 2, 2028), ' ', jdtogregorian(gregoriantojd(11, 27, 2026)), "\n";
+echo 'ctype ', var_export(ctype_digit('12345'), true), ' ', var_export(ctype_alpha('ab1'), true), "\n";
+echo 'fileinfo ', (new finfo(FILEINFO_MIME_TYPE))->buffer("\x89PNG\r\n\x1a\n\0\0\0\rIHDR"), ' ', (new finfo(FILEINFO_MIME_TYPE))->buffer('<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"/>'), "\n";
+echo 'filter ', var_export(filter_var('a@example.org', FILTER_VALIDATE_EMAIL), true), ' ', var_export(filter_var('12x', FILTER_VALIDATE_INT), true), "\n";
+echo 'mbstring ', mb_strlen('Ünïcödé'), ' ', mb_strtoupper('straße'), ' ', mb_substr('日本語テキスト', 2, 3), ' ', bin2hex(mb_convert_encoding('é', 'ISO-8859-1', 'UTF-8')), "\n";
+echo 'tokenizer ', count(token_get_all('<?php echo 1 + 2;')), ' ', token_name(T_ECHO), "\n";
+echo 'session ', var_export(session_status() === PHP_SESSION_NONE, true), ' ', var_export(strlen(session_create_id()) >= 22, true), "\n";
+echo 'pdo ', implode(',', PDO::getAvailableDrivers()), "|\n";
+
 // Fibers switch stacks through the routines converted from PHP's own
 // Microsoft-syntax assembly, so exercise them properly: values passed both
 // ways, nesting, many switches, exceptions crossing the boundary, and a
