@@ -127,6 +127,12 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 
 %requirement[SRS-088 constraint verification=inspection derives=SYS-018 rationale="The project prefers permissive licences; GPL and LGPL components are accepted where the wiki requires them."] A third-party component under a copyleft licence shall be used only where no permissively licensed alternative meets the need, and each such component shall be listed with its licence.
 
+%requirement[SRS-089 interface verification=demonstration derives=SYS-003,SYS-007] A release shall be published from GitHub Actions with two separate packages: a zip of only the files needed to deploy the wiki service, and the Windows executable. The container image itself shall not be built or published by the release.
+
+%requirement[SRS-090 constraint verification=inspection derives=SYS-018] Each release shall include a software bill of materials naming every third-party component, its version, licence and source. It shall be generated from the build's own dependency manifest.
+
+%requirement[SRS-091 constraint verification=inspection derives=SYS-021] The project's own code shall be under the MIT licence.
+
 %requirement[SRS-085 constraint verification=inspection derives=SYS-021] Requirements shall be kept as Skein items in this repository and `skein check` shall report no problems.
 
 ## Qualification provisions

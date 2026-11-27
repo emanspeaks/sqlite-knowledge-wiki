@@ -226,3 +226,16 @@ types after the jobrunner had updated them.
   image at `/etc/mediawiki/LocalSettings.php`, outside the web root.
 - Other entrypoint commands: `jobrunner` (job loop, no initialization) and any
   other command, which is executed as given.
+
+## Releases
+
+`VERSION` holds the next release's version. A push to `main` with an untagged version is built, tested on Windows, packaged and published by `.github/workflows/release.yml`. A release has:
+
+- `sqlite-knowledge-wiki-vX-server.zip`: the files to deploy the wiki service (the image is built where it is deployed, with `docker compose up --build`).
+- the Windows program, as its own zip.
+- `sqlite-knowledge-wiki-vX-sbom.cdx.json`: the bill of materials (CycloneDX), with every third-party component's version, licence, source and checksum. `zig build sbom` in `offline/php` writes it.
+- `SHA256SUMS`.
+
+## Licence
+
+The code in this repository is under the MIT licence (`LICENSE`). The software it builds and deploys has licences of its own, listed in the bill of materials: MediaWiki, Semantic MediaWiki and Wikibase are GPL-2.0-or-later, and two libraries inside PHP are LGPL.

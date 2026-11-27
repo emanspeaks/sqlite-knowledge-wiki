@@ -10,6 +10,8 @@
 const std = @import("std");
 const sources = @import("sources.zig");
 const icu_sources = @import("icu_sources.zig");
+const components = @import("components.zig");
+const manifest = @import("build.zig.zon");
 
 /// Flags for every PHP source file.
 const php_flags = [_][]const u8{
@@ -550,6 +552,107 @@ pub fn build(b: *std.Build) void {
     smoke_mod.linkLibrary(lib);
     const smoke = b.addExecutable(.{ .name = "php-embed-smoke", .root_module = smoke_mod });
     b.installArtifact(smoke);
+
+    // `zig build sbom`: the software bill of materials, zig-out/sbom.cdx.json.
+    const sbom_files = b.addWriteFiles();
+    const sbom_file = sbom_files.add("sbom.cdx.json", sbom(b));
+    const sbom_step = b.step("sbom", "Write the software bill of materials (CycloneDX JSON)");
+    sbom_step.dependOn(&b.addInstallFile(sbom_file, "sbom.cdx.json").step);
+}
+
+/// The software bill of materials in CycloneDX 1.5 JSON. Where each fetched
+/// component comes from and its package hash are read from build.zig.zon
+/// itself, so the SBOM cannot disagree with what is built; a dependency with
+/// no entry in components.zig is a compile error. There is no timestamp or
+/// serial number: the same sources give the same file.
+fn sbom(b: *std.Build) []const u8 {
+    comptime {
+        for (std.meta.fieldNames(@TypeOf(manifest.dependencies))) |dependency| {
+            var found = false;
+            for (components.fetched) |c| {
+                if (std.mem.eql(u8, c.dependency.?, dependency)) found = true;
+            }
+            if (!found) @compileError("build.zig.zon dependency '" ++ dependency ++ "' has no entry in components.zig");
+        }
+    }
+    const arena = b.allocator;
+    var out: std.ArrayList(u8) = .empty;
+    const version = b.option([]const u8, "version", "The project version to record in the SBOM") orelse "0.0.0";
+    out.appendSlice(arena, b.fmt(
+        \\{{
+        \\  "bomFormat": "CycloneDX",
+        \\  "specVersion": "1.5",
+        \\  "version": 1,
+        \\  "metadata": {{
+        \\    "component": {{
+        \\      "type": "application",
+        \\      "name": "sqlite-knowledge-wiki",
+        \\      "version": {s},
+        \\      "licenses": [{{ "license": {{ "id": "MIT" }} }}]
+        \\    }}
+        \\  }},
+        \\  "components": [
+        \\
+    , .{json(b, version)})) catch @panic("OOM");
+
+    var first = true;
+    inline for (components.fetched) |c| {
+        const dep = @field(manifest.dependencies, c.dependency.?);
+        appendComponent(b, &out, &first, c, "fetched and built by offline/php/build.zig", dep.url, dep.hash);
+    }
+    for (components.bundled_in_php) |c| appendComponent(b, &out, &first, c, "bundled in the PHP release", null, null);
+    for (components.wiki) |c| appendComponent(b, &out, &first, c, "fetched by the container build", null, null);
+    out.appendSlice(arena, "\n  ]\n}\n") catch @panic("OOM");
+    return out.items;
+}
+
+fn appendComponent(
+    b: *std.Build,
+    out: *std.ArrayList(u8),
+    first: *bool,
+    c: components.Component,
+    origin: []const u8,
+    url: ?[]const u8,
+    zig_hash: ?[]const u8,
+) void {
+    const arena = b.allocator;
+    if (!first.*) out.appendSlice(arena, ",\n") catch @panic("OOM");
+    first.* = false;
+    // An SPDX identifier goes in "id"; anything else has to be a "name".
+    const license_key = if (std.mem.startsWith(u8, c.license, "LicenseRef-")) "name" else "id";
+    out.appendSlice(arena, b.fmt(
+        \\    {{
+        \\      "type": "library",
+        \\      "name": {s},
+        \\      "version": {s},
+        \\      "supplier": {{ "name": {s} }},
+        \\      "description": {s},
+        \\      "licenses": [{{ "license": {{ "{s}": {s} }} }}]
+    , .{ json(b, c.name), json(b, c.version), json(b, c.supplier), json(b, c.purpose), license_key, json(b, c.license) })) catch @panic("OOM");
+    if (c.sha256.len != 0) {
+        out.appendSlice(arena, b.fmt(",\n      \"hashes\": [{{ \"alg\": \"SHA-256\", \"content\": {s} }}]", .{json(b, c.sha256)})) catch @panic("OOM");
+    }
+    if (url) |u| {
+        out.appendSlice(arena, b.fmt(",\n      \"externalReferences\": [{{ \"type\": \"distribution\", \"url\": {s} }}]", .{json(b, u)})) catch @panic("OOM");
+    }
+    out.appendSlice(arena, b.fmt(",\n      \"properties\": [\n        {{ \"name\": \"origin\", \"value\": {s} }}", .{json(b, origin)})) catch @panic("OOM");
+    if (zig_hash) |h| out.appendSlice(arena, b.fmt(",\n        {{ \"name\": \"zig-package-hash\", \"value\": {s} }}", .{json(b, h)})) catch @panic("OOM");
+    if (c.source.len != 0) out.appendSlice(arena, b.fmt(",\n        {{ \"name\": \"source\", \"value\": {s} }}", .{json(b, c.source)})) catch @panic("OOM");
+    if (c.source_note.len != 0) out.appendSlice(arena, b.fmt(",\n        {{ \"name\": \"source-note\", \"value\": {s} }}", .{json(b, c.source_note)})) catch @panic("OOM");
+    out.appendSlice(arena, "\n      ]\n    }") catch @panic("OOM");
+}
+
+/// A JSON string literal. The values are plain ASCII text written in this
+/// repository; quotes and backslashes are the only characters to escape.
+fn json(b: *std.Build, text: []const u8) []const u8 {
+    var out: std.ArrayList(u8) = .empty;
+    out.append(b.allocator, '"') catch @panic("OOM");
+    for (text) |ch| {
+        if (ch == '"' or ch == '\\') out.append(b.allocator, '\\') catch @panic("OOM");
+        out.append(b.allocator, ch) catch @panic("OOM");
+    }
+    out.append(b.allocator, '"') catch @panic("OOM");
+    return out.items;
 }
 
 /// A third-party library built from its release in build.zig.zon.
