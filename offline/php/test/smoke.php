@@ -21,6 +21,7 @@ echo 'calendar ', cal_days_in_month(CAL_GREGORIAN, 2, 2028), ' ', jdtogregorian(
 echo 'ctype ', var_export(ctype_digit('12345'), true), ' ', var_export(ctype_alpha('ab1'), true), "\n";
 echo 'fileinfo ', (new finfo(FILEINFO_MIME_TYPE))->buffer("\x89PNG\r\n\x1a\n\0\0\0\rIHDR"), ' ', (new finfo(FILEINFO_MIME_TYPE))->buffer('<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"/>'), "\n";
 echo 'filter ', var_export(filter_var('a@example.org', FILTER_VALIDATE_EMAIL), true), ' ', var_export(filter_var('12x', FILTER_VALIDATE_INT), true), "\n";
+echo 'mbregex ', var_export(mb_ereg('^(\\p{Lu})(\\w+)$', 'Ünïcode', $m), true), ' ', $m[1] ?? '?', ' ', mb_ereg_replace('[äöü]', '_', 'größer als Bär'), ' ', implode('|', mb_split('\\s+', 'a  b c')), "\n";
 echo 'mbstring ', mb_strlen('Ünïcödé'), ' ', mb_strtoupper('straße'), ' ', mb_substr('日本語テキスト', 2, 3), ' ', bin2hex(mb_convert_encoding('é', 'ISO-8859-1', 'UTF-8')), "\n";
 echo 'tokenizer ', count(token_get_all('<?php echo 1 + 2;')), ' ', token_name(T_ECHO), "\n";
 echo 'session ', var_export(session_status() === PHP_SESSION_NONE, true), ' ', var_export(strlen(session_create_id()) >= 22, true), "\n";
@@ -110,7 +111,11 @@ $chunk = $sandbox->loadString('local t = {} for i = 1, 5 do t[#t + 1] = php.doub
 $lua = $chunk->call();
 try { $sandbox->loadString('error("from lua")')->call(); $err = 'none'; } catch (LuaSandboxRuntimeError $e) { $err = preg_replace('/^.*: /', '', $e->getMessage()); }
 try { $sandbox->loadString('local s = "x" while true do s = s .. s end')->call(); $mem = 'none'; } catch (LuaSandboxMemoryError $e) { $mem = 'memory limit'; }
-echo 'luasandbox ', implode(' ', $lua), ' | ', $err, ' | ', $mem, "\n";
+$sandbox->setCPULimit(0.25);
+$started = microtime(true);
+try { $sandbox->loadString('local n = 0 while true do n = n + 1 end')->call(); $cpu = 'none'; } catch (LuaSandboxTimeoutError $e) { $cpu = 'cpu limit'; }
+$took = microtime(true) - $started;
+echo 'luasandbox ', implode(' ', $lua), ' | ', $err, ' | ', $mem, ' | ', $cpu, ' ', $took > 0.2 && $took < 3 ? 'in time' : 'took ' . round($took, 2), ' ', $sandbox->getCPUUsage() > 0.2 ? 'usage counted' : 'no usage', "\n";
 
 // Fibers switch stacks through the routines converted from PHP's own
 // Microsoft-syntax assembly, so exercise them properly: values passed both

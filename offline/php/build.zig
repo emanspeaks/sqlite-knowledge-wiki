@@ -73,6 +73,9 @@ const Extension = struct {
     /// build.zig.zon and the directory in it that holds the sources.
     package: ?[]const u8 = null,
     package_dir: []const u8 = "",
+    /// Sources in this repository that go with the extension.
+    own_sources: []const []const u8 = &.{},
+    system_libs: []const []const u8 = &.{},
     /// Whether some of the sources are C++.
     cxx: bool = false,
     /// Third-party libraries, by their name in build.zig.zon.
@@ -177,16 +180,16 @@ const extensions = [_]Extension{
         // does not declare. Microsoft's compiler lets that pass; clang needs
         // telling. The function returns an int-sized enum, so it is safe.
         .flags = &.{ "-DPHP_GD_EXPORTS=1", "-DHAVE_GD_GET_INTERPOLATION", "-Wno-error=implicit-function-declaration" },
-        .uses = &.{ "libpng", "jpeg", "zlib", "libiconv" },
+        .uses = &.{ "libpng", "jpeg", "zlib", "win_iconv" },
     },
     .{
         .name = "iconv",
         .sources = &sources.iconv,
         .header = "ext/iconv/php_iconv.h",
         .module = "phpext_iconv_ptr",
-        .config = "#define HAVE_ICONV 1\n#define HAVE_LIBICONV 1\n#define ICONV_ALIASED_LIBICONV 1\n#define PHP_ICONV_IMPL \"\\\"libiconv\\\"\"\n",
+        .config = "#define HAVE_ICONV 1\n#define PHP_ICONV_IMPL \"\\\"win-iconv\\\"\"\n",
         .flags = &.{"-DPHP_ICONV_EXPORTS"},
-        .uses = &.{"libiconv"},
+        .uses = &.{"win_iconv"},
     },
     .{
         .name = "intl",
@@ -206,14 +209,16 @@ const extensions = [_]Extension{
         .uses = &.{"icu"},
     },
     .{
-        // Scribunto's Lua engine, in-process. On Windows it has no CPU-time
-        // limit for scripts (it needs POSIX timers); the memory limit works.
+        // Scribunto's Lua engine, in-process. Its CPU-time limit uses POSIX
+        // timers, which compat/luasandbox_posix_timers.c provides on Win32.
         .name = "luasandbox",
         .sources = &.{ "alloc.c", "data_conversion.c", "library.c", "luasandbox.c", "timer.c", "luasandbox_lstrlib.c" },
-        .header = "php_luasandbox.h",
+        .header = "php_luasandbox_win32.h",
         .module = "phpext_luasandbox_ptr",
-        .config = "#define LUASANDBOX_NO_CLOCK 1\n",
-        .flags = &.{"-DHAVE_CONFIG_H"},
+        .config = "",
+        .flags = &.{ "-DHAVE_CONFIG_H", "-include", "compat/luasandbox_posix_timers.h" },
+        .own_sources = &.{"compat/luasandbox_posix_timers.c"},
+        .system_libs = &.{"pthread"},
         .package = "luasandbox",
         .package_dir = "LuaSandbox-4.1.3",
         .uses = &.{"lua"},
@@ -221,14 +226,16 @@ const extensions = [_]Extension{
         .generated = &.{.{ .name = "config.h", .contents = "#include \"config.w32.h\"\n" }},
     },
     .{
-        // Without multibyte regular expressions, which would need Oniguruma.
+        // With multibyte regular expressions (mb_ereg and friends), which
+        // the Math extension uses.
         .name = "mbstring",
-        .sources = &sources.mbstring,
+        .sources = &(sources.mbstring ++ [_][]const u8{"ext/mbstring/php_mbregex.c"}),
         .header = "ext/mbstring/mbstring.h",
         .module = "phpext_mbstring_ptr",
-        .config = "#define HAVE_MBSTRING 1\n",
+        .config = "#define HAVE_MBSTRING 1\n#define HAVE_MBREGEX 1\n",
         .include_dirs = &.{ "ext/mbstring", "ext/mbstring/libmbfl", "ext/mbstring/libmbfl/mbfl" },
-        .flags = &.{ "-DHAVE_STRICMP", "-DMBFL_DLL_EXPORT=1", "-DHAVE_CONFIG_H" },
+        .flags = &.{ "-DHAVE_STRICMP", "-DMBFL_DLL_EXPORT=1", "-DHAVE_CONFIG_H", "-DONIG_EXTERN=extern", "-DPHP_ONIG_BAD_KOI8_ENTRY=1" },
+        .uses = &.{"oniguruma"},
         // PHP's configure copies libmbfl/config.h.w32 to libmbfl/config.h.
         .generated = &.{.{ .name = "libmbfl/config.h", .contents = "#include \"config.h.w32\"\n" }},
     },
@@ -460,7 +467,8 @@ pub fn build(b: *std.Build) void {
     libraries.put(arena, "sqlite", sqlite(b, target, optimize)) catch @panic("OOM");
     libraries.put(arena, "libxml2", libxml2(b, target, optimize)) catch @panic("OOM");
     libraries.put(arena, "lua", lua(b, target, optimize)) catch @panic("OOM");
-    libraries.put(arena, "libiconv", libiconv(b, target, optimize)) catch @panic("OOM");
+    libraries.put(arena, "win_iconv", winIconv(b, target, optimize)) catch @panic("OOM");
+    libraries.put(arena, "oniguruma", oniguruma(b, target, optimize)) catch @panic("OOM");
     libraries.put(arena, "libpng", libpng(b, target, optimize, libraries.get("zlib").?)) catch @panic("OOM");
     libraries.put(arena, "jpeg", jpeg(b, target, optimize)) catch @panic("OOM");
     libraries.put(arena, "icu", icu(b, target, optimize)) catch @panic("OOM");
@@ -511,6 +519,8 @@ pub fn build(b: *std.Build) void {
         for (ext.uses) |name| libraries.get(name).?.addTo(m);
         addPhpIncludes(b, m, includes);
         const flags = std.mem.concat(arena, []const u8, &.{ &php_flags, ext.flags }) catch @panic("OOM");
+        for (ext.own_sources) |file| m.addCSourceFile(.{ .file = b.path(file), .flags = &library_flags });
+        for (ext.system_libs) |name| m.linkSystemLibrary(name, .{});
         const root = if (ext.package) |package| b.dependency(package, .{}).path(ext.package_dir) else src;
         if (ext.cxx) {
             // -fms-extensions is for PHP's C; the C++ sources get C++17, which ICU's headers need.
@@ -712,47 +722,45 @@ fn jpeg(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.O
     return .{ .artifact = lib, .include = dep.path(""), .extra_include = generated.getDirectory() };
 }
 
-/// GNU libiconv: character set conversion. The library is under the LGPL.
-fn libiconv(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) Library {
-    const dep = b.dependency("libiconv", .{});
-    const header = b.addConfigHeader(.{
-        .style = .{ .autoconf_at = dep.path("include/iconv.h.in") },
-        .include_path = "iconv.h",
-    }, .{
-        .DLL_VARIABLE = "",
-        .EILSEQ = "",
-        .ICONV_CONST = "",
-        .USE_MBSTATE_T = 1,
-        .BROKEN_WCHAR_H = 0,
-    });
-    const generated = b.addWriteFiles();
-    _ = generated.addCopyFile(dep.path("libcharset/include/localcharset.h.in"), "localcharset.h");
-    _ = generated.add("config.h",
-        \\/* Written by build.zig in place of libiconv's configure. */
-        \\#define ICONV_CONST
-        \\#define ENABLE_EXTRA 1
-        \\#define HAVE_WCRTOMB 1
-        \\#define HAVE_MBRTOWC 1
-        \\#define HAVE_WORKING_O_NOFOLLOW 0
-        \\#define HAVE_VISIBILITY 0
-        \\#define WORDS_LITTLEENDIAN 1
-        \\#define ENABLE_RELOCATABLE 0
-        \\
-    );
+/// win-iconv: the iconv interface on top of Windows' own conversion
+/// functions. Public domain. It replaces GNU libiconv, which is LGPL.
+fn winIconv(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) Library {
+    const dep = b.dependency("win_iconv", .{});
     const m = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
-    m.addConfigHeader(header);
-    m.addIncludePath(generated.getDirectory());
-    m.addIncludePath(dep.path("include"));
-    m.addIncludePath(dep.path("lib"));
-    m.addCSourceFiles(.{
-        .root = dep.path(""),
-        .files = &.{ "lib/iconv.c", "libcharset/lib/localcharset.c" },
-        .flags = &(library_flags ++ [_][]const u8{ "-DLIBDIR=\"\"", "-DBUILDING_LIBICONV", "-DBUILDING_LIBCHARSET", "-DIN_LIBRARY" }),
-    });
+    m.addIncludePath(dep.path(""));
+    m.addCSourceFile(.{ .file = dep.path("win_iconv.c"), .flags = &library_flags });
     return .{
         .artifact = b.addLibrary(.{ .name = "iconv", .linkage = .static, .root_module = m }),
-        .include = generated.getDirectory(),
-        .config_header = header,
+        .include = dep.path(""),
+    };
+}
+
+/// Oniguruma: the regular expression engine behind mbstring's mb_ereg
+/// functions, which the Math extension uses. BSD licence.
+fn oniguruma(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) Library {
+    const dep = b.dependency("oniguruma", .{});
+    // config.h.win64 is the configuration Oniguruma ships for 64-bit Windows.
+    const generated = b.addWriteFiles();
+    _ = generated.addCopyFile(dep.path("src/config.h.win64"), "config.h");
+    const m = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
+    m.addIncludePath(generated.getDirectory());
+    m.addIncludePath(dep.path("src"));
+    m.addCSourceFiles(.{
+        .root = dep.path("src"),
+        .files = &.{
+            "regparse.c",          "regcomp.c",           "regexec.c",           "regenc.c",      "regerror.c",   "regext.c",     "regsyntax.c",
+            "regtrav.c",           "regversion.c",        "st.c",                "reggnu.c",      "onig_init.c",  "unicode.c",    "unicode_unfold_key.c",
+            "unicode_fold1_key.c", "unicode_fold2_key.c", "unicode_fold3_key.c", "ascii.c",       "utf8.c",       "utf16_be.c",   "utf16_le.c",
+            "utf32_be.c",          "utf32_le.c",          "euc_jp.c",            "euc_jp_prop.c", "sjis.c",       "sjis_prop.c",  "iso8859_1.c",
+            "iso8859_2.c",         "iso8859_3.c",         "iso8859_4.c",         "iso8859_5.c",   "iso8859_6.c",  "iso8859_7.c",  "iso8859_8.c",
+            "iso8859_9.c",         "iso8859_10.c",        "iso8859_11.c",        "iso8859_13.c",  "iso8859_14.c", "iso8859_15.c", "iso8859_16.c",
+            "euc_tw.c",            "euc_kr.c",            "big5.c",              "gb18030.c",     "koi8_r.c",     "cp1251.c",
+        },
+        .flags = &(library_flags ++ [_][]const u8{ "-DONIG_STATIC", "-DONIG_EXTERN=extern", "-DHAVE_CONFIG_H" }),
+    });
+    return .{
+        .artifact = b.addLibrary(.{ .name = "onig", .linkage = .static, .root_module = m }),
+        .include = dep.path("src"),
     };
 }
 

@@ -63,6 +63,10 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 
 %requirement[SRS-027 functional verification=demonstration derives=SYS-012] Scribunto Lua modules shall run in the offline viewer without starting an external program.
 
+%requirement[SRS-031 functional verification=test derives=SYS-012] Scribunto's CPU-time limit on Lua scripts shall be enforced in the offline viewer.
+
+%requirement[SRS-032 functional verification=test derives=SYS-012] The Math extension shall be enabled in the wiki service and in the offline viewer, rendering formulas without an external service.
+
 %requirement[SRS-028 functional verification=inspection derives=SYS-013] The offline viewer shall ship a prebaked English localisation cache.
 
 %requirement[SRS-029 functional verification=test derives=SYS-012] Thumbnails shall be generated offline with PHP's own image library; ImageMagick shall not be required.
@@ -120,6 +124,8 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 %requirement[SRS-086 constraint verification=inspection derives=SYS-019] Native components shall build for Windows with the toolchain Zig bundles, without the Microsoft compiler or SDK installed.
 
 %requirement[SRS-087 constraint verification=test derives=SYS-018] The offline PHP shall build its fiber context-switch routines from PHP's own sources; the routines shall not be copied from another project. Fibers shall be covered by the build's tests.
+
+%requirement[SRS-088 constraint verification=inspection derives=SYS-018 rationale="The project prefers permissive licences; GPL and LGPL components are accepted where the wiki requires them."] A third-party component under a copyleft licence shall be used only where no permissively licensed alternative meets the need, and each such component shall be listed with its licence.
 
 %requirement[SRS-085 constraint verification=inspection derives=SYS-021] Requirements shall be kept as Skein items in this repository and `skein check` shall report no problems.
 

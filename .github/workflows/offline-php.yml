@@ -16,6 +16,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The pinned releases, so a build does not depend on every upstream
+      # download site answering.
+      - uses: actions/cache@v4
+        with:
+          path: offline/php/zig-pkg
+          key: zig-pkg-${{ hashFiles('offline/php/build.zig.zon') }}
       - run: pip install ziglang==$ZIG_VERSION
       - name: zig build (Debug)
         working-directory: offline/php
@@ -64,6 +70,12 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+      # The pinned releases, so a build does not depend on every upstream
+      # download site answering.
+      - uses: actions/cache@v4
+        with:
+          path: offline/php/zig-pkg
+          key: zig-pkg-${{ hashFiles('offline/php/build.zig.zon') }}
       - run: pip install ziglang==$ZIG_VERSION
       - name: zig build
         working-directory: offline/php

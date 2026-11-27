@@ -60,11 +60,17 @@
             .url = "https://www.ijg.org/files/jpegsrc.v9f.tar.gz",
             .hash = "N-V-__8AAB8MRQC7z9yHiE9h4hkpythIQIYO9BkbbEAO27AL",
         },
-        // GNU libiconv 1.19.1, from ftp.gnu.org. SHA-256 of the archive:
-        // 9a06844846d664d7122161700c10a64480d7c7bcead3091925a785b38c91edab
-        .libiconv = .{
-            .url = "https://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.19.1.tar.gz",
-            .hash = "N-V-__8AAOZzVwHLF1OQtBwxFUXAuD0lhmmn_Em05E9VCK2L",
+        // win-iconv 0.0.11 (public domain), from its GitHub repository at tag
+        // v0.0.11, commit 70a279dcfe6318bbe63e019e33b3230b55c19762.
+        .win_iconv = .{
+            .url = "https://github.com/win-iconv/win-iconv/archive/refs/tags/v0.0.11.tar.gz",
+            .hash = "N-V-__8AAEFWAQDbccE83AGCQdU5CNodjQP9Pnf7cELWOHkv",
+        },
+        // Oniguruma 6.9.10, from its GitHub releases. SHA-256 of the archive:
+        // 2a5cfc5ae259e4e97f86b68dfffc152cdaffe94e2060b770cb827238d769fc05
+        .oniguruma = .{
+            .url = "https://github.com/kkos/oniguruma/releases/download/v6.9.10/onig-6.9.10.tar.gz",
+            .hash = "N-V-__8AAACsRQAepywES-U2-QkCR-zNWAZ-8RC1ERewb1fw",
         },
     },
     .paths = .{
