@@ -1,0 +1,89 @@
+.{
+    .name = .wiki_php,
+    .fingerprint = 0x11364344cad7a6b5,
+    .version = "8.3.37",
+    .minimum_zig_version = "0.17.1",
+    .dependencies = .{
+        // The official signed release from php.net. Its SHA-256,
+        // 0237af84478b7a7649d3964153f1b8653d622550b846f56d63062de683fb86bb,
+        // matches the one php.net publishes for php-8.3.37.tar.xz.
+        .php = .{
+            .url = "https://www.php.net/distributions/php-8.3.37.tar.xz",
+            .hash = "N-V-__8AAB_azwh6QpfNTlwG4ZxIEWicOX9v3iDeQU7mvw-h",
+        },
+        // zlib 1.3.1, from its author's GitHub releases (zlib.net serves the same
+        // file, but has answered build machines with an error page). SHA-256 of the archive:
+        // 9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23
+        .zlib = .{
+            .url = "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz",
+            .hash = "N-V-__8AAJj_QgDBhU17TCtcvdjOZZPDfkvxrEAyZkc14VN8",
+        },
+        // SQLite 3.54.1 amalgamation, from sqlite.org. SHA3-256
+        // 92281c86e2957f9b9305890f9ac04204caa7b677cc868dc326d942689df28e30, as sqlite.org publishes. SHA-256 of the archive:
+        // 0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9
+        .sqlite = .{
+            .url = "https://sqlite.org/2026/sqlite-amalgamation-3540100.zip",
+            .hash = "N-V-__8AAETTsABEodUZZFAyfdAm9hEyqBXuLw9pRSO0vFh9",
+        },
+        // libxml2 2.15.4, from the GNOME download server. SHA-256 of the archive:
+        // 98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821
+        .libxml2 = .{
+            .url = "https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.4.tar.xz",
+            .hash = "N-V-__8AAH30hwIndEJ9icgSaGo9HFSuUmIv1I6SlorjnfU-",
+        },
+        // ICU 79.1, from the Unicode Consortium's GitHub releases. SHA-256 of the archive:
+        // 06fa63ecb521048f8082f12ad988f6b678d90cbd88aafce24cbc94902b191d99
+        .icu = .{
+            .url = "https://github.com/unicode-org/icu/releases/download/release-79.1/icu4c-79.1-sources.tgz",
+            .hash = "N-V-__8AAPCTTge1qJR5CtrVWDLb54es0Y7i4F2Xi8vzBen-",
+        },
+        // Lua 5.1.5, from lua.org. Scribunto needs the 5.1 series. SHA-256 of the archive:
+        // 2640fc56a795f29d28ef15e13c34a47e223960b0240e8cb0a82d9b0738695333
+        .lua = .{
+            .url = "https://www.lua.org/ftp/lua-5.1.5.tar.gz",
+            .hash = "N-V-__8AABAhDAAIlXL7OA-0Z5sWQh_FOFGoImvOvJzkRGOg",
+        },
+        // LuaSandbox 4.1.3, the Scribunto Lua extension, from PECL. SHA-256 of the archive:
+        // 8d20420b19b71f23782077ec8f51d044d54b2e5e4356d91bae45aad07e93adf6
+        .luasandbox = .{
+            .url = "https://pecl.php.net/get/LuaSandbox-4.1.3.tgz",
+            .hash = "N-V-__8AAF7aBAA2ktc_xQ27Bwk8Tkv5MNDPGHtlZipJAIvx",
+        },
+        // libpng 1.6.59, from the libpng SourceForge project. SHA-256 of the archive:
+        // d80dd2a38a37f803cb9b6ac7b14bd6e74ddc3b654780a8380bdf93523fdb4389
+        .libpng = .{
+            .url = "https://download.sourceforge.net/libpng/libpng-1.6.59.tar.xz",
+            .hash = "N-V-__8AALklYQB8O4neIy7xVIGTKkDqkIwe5uoN9ExqSXov",
+        },
+        // IJG libjpeg 9f, from ijg.org. SHA-256 of the archive:
+        // 04705c110cb2469caa79fb71fba3d7bf834914706e9641a4589485c1f832565b
+        .jpeg = .{
+            .url = "https://www.ijg.org/files/jpegsrc.v9f.tar.gz",
+            .hash = "N-V-__8AAB8MRQC7z9yHiE9h4hkpythIQIYO9BkbbEAO27AL",
+        },
+        // win-iconv 0.0.11 (public domain), from its GitHub repository at tag
+        // v0.0.11, commit 70a279dcfe6318bbe63e019e33b3230b55c19762.
+        .win_iconv = .{
+            .url = "https://github.com/win-iconv/win-iconv/archive/refs/tags/v0.0.11.tar.gz",
+            .hash = "N-V-__8AAEFWAQDbccE83AGCQdU5CNodjQP9Pnf7cELWOHkv",
+        },
+        // Oniguruma 6.9.10, from its GitHub releases. SHA-256 of the archive:
+        // 2a5cfc5ae259e4e97f86b68dfffc152cdaffe94e2060b770cb827238d769fc05
+        .oniguruma = .{
+            .url = "https://github.com/kkos/oniguruma/releases/download/v6.9.10/onig-6.9.10.tar.gz",
+            .hash = "N-V-__8AAACsRQAepywES-U2-QkCR-zNWAZ-8RC1ERewb1fw",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "sources.zig",
+        "icu_sources.zig",
+        "components.zig",
+        "build",
+        "compat",
+        "patches",
+        "test",
+        "tools",
+    },
+}

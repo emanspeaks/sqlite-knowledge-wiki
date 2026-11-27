@@ -1,0 +1,9 @@
+# Benchmark image: the wiki image plus the wikivfs extension and a pack of
+# MediaWiki's tree. Used only to measure the virtual file system on Linux.
+ARG WIKI_IMAGE=sqlite-knowledge-wiki:latest
+FROM ${WIKI_IMAGE}
+COPY wikivfs.c pack.py /opt/wikivfs/
+RUN set -eux; cd /opt/wikivfs; \
+    gcc -O2 -fPIC -shared -Wall -Wno-unused-parameter $(php-config --includes) -o wikivfs.so wikivfs.c; \
+    cp wikivfs.so "$(php-config --extension-dir)/"; \
+    python3 pack.py /var/www/html /opt/mw.wvfs

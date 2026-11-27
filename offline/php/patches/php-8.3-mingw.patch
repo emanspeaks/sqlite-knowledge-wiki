@@ -1,0 +1,305 @@
+--- a/Zend/zend_config.w32.h
++++ b/Zend/zend_config.w32.h
+@@ -20,6 +20,18 @@
+ #ifndef ZEND_CONFIG_W32_H
+ #define ZEND_CONFIG_W32_H
+ 
++#ifdef __MINGW32__
++/* Building with the MinGW-w64 headers (Zig's bundled Windows toolchain)
++ * instead of Microsoft's: the compiler intrinsics are declared in intrin.h,
++ * and MinGW already provides nanosleep() and usleep(), which win32/time.c
++ * defines as well. */
++# include <intrin.h>
++# include <time.h>
++# include <unistd.h>
++# define nanosleep php_win32_nanosleep
++# define usleep php_win32_usleep
++#endif
++
+ #include <../main/config.w32.h>
+ 
+ #define _CRTDBG_MAP_ALLOC
+--- a/main/php.h
++++ b/main/php.h
+@@ -92,7 +92,9 @@
+ typedef int uid_t;
+ typedef int gid_t;
+ typedef char * caddr_t;
++#ifndef __MINGW32__
+ typedef int pid_t;
++#endif
+ 
+ # define M_TWOPI        (M_PI * 2.0)
+ # define off_t			_off_t
+--- a/win32/time.h
++++ b/win32/time.h
+@@ -17,10 +17,12 @@
+ #include "php.h"
+ 
+ /* Struct stuff ************************************************************* */
++#ifndef __MINGW32__
+ struct timezone {
+ 	int tz_minuteswest;
+ 	int tz_dsttime;
+ };
++#endif
+ 
+ 
+ struct itimerval {
+@@ -28,7 +30,7 @@
+ 	struct timeval it_value;	/* current value */
+ };
+ 
+-#if !defined(timespec) && _MSC_VER < 1900
++#if !defined(timespec) && !defined(__MINGW32__) && _MSC_VER < 1900
+ struct timespec
+ {
+ 	time_t   tv_sec;   /* seconds */
+--- a/win32/ioutil.h
++++ b/win32/ioutil.h
+@@ -187,7 +187,7 @@
+ 
+ /* Keep these functions aliased for case some additional handling
+    is needed later. */
+-__forceinline static wchar_t *php_win32_ioutil_conv_any_to_w(const char* in, size_t in_len, size_t *out_len)
++static inline __attribute__((always_inline)) wchar_t *php_win32_ioutil_conv_any_to_w(const char* in, size_t in_len, size_t *out_len)
+ {/*{{{*/
+ 	wchar_t *mb, *ret;
+ 	size_t mb_len;
+@@ -261,7 +261,7 @@
+ #define php_win32_ioutil_cur_to_w php_win32_cp_cur_to_w
+ #define php_win32_ioutil_w_to_any php_win32_cp_w_to_any
+ #define php_win32_ioutil_conv_w_to_any php_win32_cp_conv_w_to_any
+-/*__forceinline static char *php_win32_ioutil_w_to_any(wchar_t* w_source_ptr)
++/*static inline __attribute__((always_inline)) char *php_win32_ioutil_w_to_any(wchar_t* w_source_ptr)
+ {
+ 	return php_win32_cp_w_to_any(w_source_ptr);
+ }*/
+@@ -285,7 +285,7 @@
+ PW32IO int php_win32_ioutil_symlink_w(const wchar_t *target, const wchar_t *link);
+ PW32IO int php_win32_ioutil_link_w(const wchar_t *target, const wchar_t *link);
+ 
+-__forceinline static int php_win32_ioutil_access(const char *path, mode_t mode)
++static inline __attribute__((always_inline)) int php_win32_ioutil_access(const char *path, mode_t mode)
+ {/*{{{*/
+ 	PHP_WIN32_IOUTIL_INIT_W(path)
+ 	int ret, err;
+@@ -310,7 +310,7 @@
+ 	return ret;
+ }/*}}}*/
+ 
+-__forceinline static int php_win32_ioutil_open(const char *path, int flags, ...)
++static inline __attribute__((always_inline)) int php_win32_ioutil_open(const char *path, int flags, ...)
+ {/*{{{*/
+ 	mode_t mode = 0;
+ 	PHP_WIN32_IOUTIL_INIT_W(path)
+@@ -345,7 +345,7 @@
+ 	return ret;
+ }/*}}}*/
+ 
+-__forceinline static int php_win32_ioutil_unlink(const char *path)
++static inline __attribute__((always_inline)) int php_win32_ioutil_unlink(const char *path)
+ {/*{{{*/
+ 	PHP_WIN32_IOUTIL_INIT_W(path)
+ 	int ret = -1;
+@@ -369,7 +369,7 @@
+ 	return ret;
+ }/*}}}*/
+ 
+-__forceinline static int php_win32_ioutil_rmdir(const char *path)
++static inline __attribute__((always_inline)) int php_win32_ioutil_rmdir(const char *path)
+ {/*{{{*/
+ 	PHP_WIN32_IOUTIL_INIT_W(path)
+ 	int ret = 0;
+@@ -396,7 +396,7 @@
+ 	return ret;
+ }/*}}}*/
+ 
+-__forceinline static FILE *php_win32_ioutil_fopen(const char *patha, const char *modea)
++static inline __attribute__((always_inline)) FILE *php_win32_ioutil_fopen(const char *patha, const char *modea)
+ {/*{{{*/
+ 	FILE *ret;
+ 	wchar_t modew[16] = {0};
+@@ -428,7 +428,7 @@
+ 	return ret;
+ }/*}}}*/
+ 
+-__forceinline static int php_win32_ioutil_rename(const char *oldnamea, const char *newnamea)
++static inline __attribute__((always_inline)) int php_win32_ioutil_rename(const char *oldnamea, const char *newnamea)
+ {/*{{{*/
+ 	wchar_t *oldnamew;
+ 	wchar_t *newnamew;
+@@ -472,7 +472,7 @@
+ 	return ret;
+ }/*}}}*/
+ 
+-__forceinline static int php_win32_ioutil_chdir(const char *patha)
++static inline __attribute__((always_inline)) int php_win32_ioutil_chdir(const char *patha)
+ {/*{{{*/
+ 	int ret;
+ 	wchar_t *pathw = php_win32_ioutil_any_to_w(patha);
+@@ -497,7 +497,7 @@
+ 	return ret;
+ }/*}}}*/
+ 
+-__forceinline static char *php_win32_ioutil_getcwd(char *buf, size_t len)
++static inline __attribute__((always_inline)) char *php_win32_ioutil_getcwd(char *buf, size_t len)
+ {/*{{{*/
+ 	wchar_t tmp_bufw[PHP_WIN32_IOUTIL_MAXPATHLEN];
+ 	char *tmp_bufa = NULL;
+@@ -537,7 +537,7 @@
+ }/*}}}*/
+ 
+ /* TODO improve with usage of native APIs, split for _a and _w. */
+-__forceinline static int php_win32_ioutil_chmod(const char *patha, int mode)
++static inline __attribute__((always_inline)) int php_win32_ioutil_chmod(const char *patha, int mode)
+ {/*{{{*/
+ 	wchar_t *pathw = php_win32_ioutil_any_to_w(patha);
+ 	int err = 0;
+@@ -564,7 +564,7 @@
+ 	return ret;
+ }/*}}}*/
+ 
+-__forceinline static int php_win32_ioutil_mkdir(const char *path, mode_t mode)
++static inline __attribute__((always_inline)) int php_win32_ioutil_mkdir(const char *path, mode_t mode)
+ {/*{{{*/
+ 	int ret;
+ 	DWORD err = 0;
+@@ -589,7 +589,7 @@
+ 	return ret;
+ }/*}}}*/
+ 
+-__forceinline static int php_win32_ioutil_symlink(const char *target, const char *link)
++static inline __attribute__((always_inline)) int php_win32_ioutil_symlink(const char *target, const char *link)
+ {/*{{{*/
+ 	wchar_t *targetw, *linkw;
+ 	int ret;
+@@ -615,7 +615,7 @@
+ 	return ret;
+ }/*}}}*/
+ 
+-__forceinline static int php_win32_ioutil_link(const char *target, const char *link)
++static inline __attribute__((always_inline)) int php_win32_ioutil_link(const char *target, const char *link)
+ {/*{{{*/
+ 	wchar_t *targetw, *linkw;
+ 	int ret;
+@@ -642,7 +642,7 @@
+ 
+ PW32IO char *realpath(const char *path, char *resolved);
+ 
+-__forceinline static char *php_win32_ioutil_realpath_ex0(const char *path, char *resolved, PBY_HANDLE_FILE_INFORMATION info)
++static inline __attribute__((always_inline)) char *php_win32_ioutil_realpath_ex0(const char *path, char *resolved, PBY_HANDLE_FILE_INFORMATION info)
+ {/*{{{*/
+ 	wchar_t retw[PHP_WIN32_IOUTIL_MAXPATHLEN];
+ 	char *reta;
+@@ -687,7 +687,7 @@
+ 	return resolved;
+ }/*}}}*/
+ 
+-__forceinline static char *php_win32_ioutil_realpath(const char *path, char *resolved)
++static inline __attribute__((always_inline)) char *php_win32_ioutil_realpath(const char *path, char *resolved)
+ {/*{{{*/
+ 	return php_win32_ioutil_realpath_ex0(path, resolved, NULL);
+ }/*}}}*/
+@@ -751,7 +751,7 @@
+ PW32IO int php_win32_ioutil_stat_ex_w(const wchar_t *path, size_t path_len, php_win32_ioutil_stat_t *buf, int lstat);
+ PW32IO int php_win32_ioutil_fstat(int fd, php_win32_ioutil_stat_t *buf);
+ 
+-__forceinline static int php_win32_ioutil_stat_ex(const char *path, php_win32_ioutil_stat_t *buf, int lstat)
++static inline __attribute__((always_inline)) int php_win32_ioutil_stat_ex(const char *path, php_win32_ioutil_stat_t *buf, int lstat)
+ {/*{{{*/
+ 	size_t pathw_len;
+ 	wchar_t *pathw = php_win32_ioutil_conv_any_to_w(path, PHP_WIN32_CP_IGNORE_LEN, &pathw_len);
+@@ -773,7 +773,7 @@
+ 
+ PW32IO ssize_t php_win32_ioutil_readlink_w(const wchar_t *path, wchar_t *buf, size_t buf_len);
+ 
+-__forceinline static ssize_t php_win32_ioutil_readlink(const char *path, char *buf, size_t buf_len)
++static inline __attribute__((always_inline)) ssize_t php_win32_ioutil_readlink(const char *path, char *buf, size_t buf_len)
+ {/*{{{*/
+ 	size_t pathw_len, ret_buf_len;
+ 	wchar_t *pathw = php_win32_ioutil_conv_any_to_w(path, PHP_WIN32_CP_IGNORE_LEN, &pathw_len);
+--- a/win32/codepage.h
++++ b/win32/codepage.h
+@@ -76,7 +76,7 @@
+ /* This function tries to make the best guess to convert any
+    given string to a wide char, also preferring the fastest code
+    path to unicode. It returns NULL on fail. */
+-__forceinline static wchar_t *php_win32_cp_conv_any_to_w(const char* in, size_t in_len, size_t *out_len)
++static inline __attribute__((always_inline)) wchar_t *php_win32_cp_conv_any_to_w(const char* in, size_t in_len, size_t *out_len)
+ {/*{{{*/
+ 	wchar_t *ret = NULL;
+ 
+@@ -117,7 +117,7 @@
+ /* This function converts from unicode function output back to PHP. If
+ 	the PHP's current charset is not compatible with unicode, so the currently
+ 	configured CP will be used. */
+-__forceinline static char *php_win32_cp_conv_w_to_any(const wchar_t* in, size_t in_len, size_t *out_len)
++static inline __attribute__((always_inline)) char *php_win32_cp_conv_w_to_any(const wchar_t* in, size_t in_len, size_t *out_len)
+ {/*{{{*/
+ 	return php_win32_cp_conv_w_to_cur(in, in_len, out_len);
+ }/*}}}*/
+--- a/win32/codepage.c
++++ b/win32/codepage.c
+@@ -35,7 +35,7 @@
+ 
+ #include "cp_enc_map.c"
+ 
+-__forceinline static wchar_t *php_win32_cp_to_w_int(const char* in, size_t in_len, size_t *out_len, UINT cp, DWORD flags)
++static inline __attribute__((always_inline)) wchar_t *php_win32_cp_to_w_int(const char* in, size_t in_len, size_t *out_len, UINT cp, DWORD flags)
+ {/*{{{*/
+ 	wchar_t *ret;
+ 	int ret_len, tmp_len;
+@@ -241,7 +241,7 @@
+ }/*}}}*/
+ #undef ASCII_FAIL_RETURN
+ 
+-__forceinline static char *php_win32_cp_from_w_int(const wchar_t* in, size_t in_len, size_t *out_len, UINT cp, DWORD flags)
++static inline __attribute__((always_inline)) char *php_win32_cp_from_w_int(const wchar_t* in, size_t in_len, size_t *out_len, UINT cp, DWORD flags)
+ {/*{{{*/
+ 	int r;
+ 	int target_len, tmp_len;
+@@ -306,7 +306,7 @@
+ }/*}}}*/
+ 
+ /* This is only usable after the startup phase*/
+-__forceinline static char *php_win32_cp_get_enc(void)
++static inline __attribute__((always_inline)) char *php_win32_cp_get_enc(void)
+ {/*{{{*/
+ 	char *enc = NULL;
+ 	const zend_encoding *zenc;
+--- a/ext/random/engine_combinedlcg.c
++++ b/ext/random/engine_combinedlcg.c
+@@ -21,6 +21,9 @@
+ 
+ #include "php.h"
+ #include "php_random.h"
++#ifdef PHP_WIN32
++# include "win32/time.h"
++#endif
+ 
+ #include "Zend/zend_exceptions.h"
+ 
+--- a/ext/standard/proc_open.c
++++ b/ext/standard/proc_open.c
+@@ -26,6 +26,9 @@
+ #include "php_globals.h"
+ #include "SAPI.h"
+ #include "main/php_network.h"
++#ifdef PHP_WIN32
++# include "win32/sockets.h"
++#endif
+ #include "zend_smart_str.h"
+ 
+ #ifdef HAVE_SYS_WAIT_H
+--- a/ext/standard/dns_win32.c
++++ b/ext/standard/dns_win32.c
+@@ -17,7 +17,7 @@
+ #include "php.h"
+ 
+ #include <windows.h>
+-#include <Winbase.h >
++#include <winbase.h>
+ #include <Windns.h>
+ 
+ #include "php_dns.h"
