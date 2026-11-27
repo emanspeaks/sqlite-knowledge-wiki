@@ -8,12 +8,6 @@ path = "docs"
 # Whether the project has safety-critical software (SWE-205, per NASA-STD-8739.8)
 "safety-critical" = "false"
 
-# NPR 7150.2D as NASA publishes it, and the handbook's reading of each requirement:
-# read-only, written by skein init from the template (skein's tools/npr7150)
-[[sources]]
-path = "standards/npr7150.2d"
-read_only = true
-
 # The maturity of the documents (the handbook's topic 7.08): each document's front
 # matter names its product (item = "PRD-01") and its maturity; skein check warns of
 # one below what its product expects at the review the project is at next. Set
