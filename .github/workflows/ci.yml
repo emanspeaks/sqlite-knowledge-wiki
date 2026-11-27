@@ -1,8 +1,8 @@
 name: CI
 
 # Modeled on skein's and zfls's ci.yml. Every pull request into main and every
-# push to main builds the Windows program (cross-compiled on Linux, and built
-# on Windows itself) and runs its tests on Windows, builds the wiki's image and
+# push to main builds the Windows program on Windows and runs its tests there
+# (the release ships that build), builds the wiki's image and
 # tests the wiki through its API, and checks zig fmt, the Markdown and the
 # requirements (skein check). Pushes to dev and pull requests
 # into it are not run: dev is checked as a whole by the pull request that
@@ -37,7 +37,7 @@ name: CI
 #
 # Signing, as skein's and zfls's ci.yml do it: only a release, and a run
 # started by hand with the `sign` input, signs the program (never a pull
-# request: signings are limited per month). compile builds it unsigned;
+# request: signings are limited per month). build-windows builds it unsigned;
 # sign-windows signs it (Azure Artifact Signing); package then archives the
 # signed program. The signing job is skipped while its configuration is unset
 # (SIGN_AZURE_CLIENT_ID and the other SIGN_* variables), and the program stays
@@ -209,16 +209,17 @@ jobs:
       - name: skein check
         run: skein check
 
-  # The Windows program, cross-compiled on Linux, unsigned: its package
-  # folder (the program, the licenses, the bill of materials, the test
-  # script), and a debug build for the tests, as a tar. sign-windows signs the
+  # The Windows program, built and tested on Windows, where it is developed
+  # and runs: a debug build and a release build, each run on the test script;
+  # then the release's package folder (the program, the licenses, the bill of
+  # materials, the test script), unsigned, as a tar. sign-windows signs the
   # program in it; package archives it.
-  compile:
-    name: Compile
+  build-windows:
+    name: Build and test on Windows
     needs: [changes, version]
     if: needs.changes.outputs.ci == 'true' && needs.changes.outputs.scope == 'full'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    runs-on: windows-2025
+    timeout-minutes: 120
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
@@ -230,8 +231,6 @@ jobs:
         with:
           path: offline/php/zig-pkg
           key: zig-pkg-${{ hashFiles('offline/php/build.zig.zon') }}
-          # shared with build-windows, which restores it
-          enableCrossOsArchive: true
 
       - uses: randyos-org/setup-zig@node24  # v2.2.1 on Node.js 24, until upstream releases it
         with:
@@ -252,16 +251,27 @@ jobs:
             echo "::warning::composer/composer.lock or image/inventory.csv is not committed: no SBOM"
           fi
 
+      - name: Test the debug build
+        run: bash tests/smoke.sh offline/php/zig-out/debug/bin/php-embed-smoke.exe "debug build" results/build-windows.toml
+
+      - name: Test the release build
+        if: always()
+        run: bash tests/smoke.sh offline/php/zig-out/release/bin/php-embed-smoke.exe "release build" results/build-windows.toml
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: results-build-windows
+          path: results
+
       - name: Stage
         run: |
           name="sqlite-knowledge-wiki-v$VERSION-php-runtime-test-windows-x86_64"
-          mkdir -p "out/$name" out/debug
+          mkdir -p "out/$name"
           cp offline/php/zig-out/release/bin/php-embed-smoke.exe LICENSE "out/$name/"
           [ ! -f offline/php/zig-out/release/sbom.cdx.json ] || cp offline/php/zig-out/release/sbom.cdx.json "out/$name/"
           cp -r offline/php/zig-out/release/licenses "out/$name/third-party-licenses"
           cp offline/php/test/smoke.php offline/php/test/smoke.expected "out/$name/"
-          # the debug build keeps its symbols, for the crash handler's traces
-          cp offline/php/zig-out/debug/bin/php-embed-smoke.* out/debug/
           tar -C out -cf unsigned.tar .
           tar -tvf unsigned.tar
 
@@ -270,72 +280,6 @@ jobs:
           name: unsigned
           path: unsigned.tar
           if-no-files-found: error
-
-  # The tests, on Windows, of the programs compile built
-  test:
-    name: Test on Windows
-    needs: compile
-    runs-on: windows-2025
-    # the tests take seconds; a hang should not hold a runner for hours
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: unsigned
-          path: unsigned
-
-      - name: Unpack
-        run: |
-          mkdir out
-          tar -C out -xf unsigned/unsigned.tar
-
-      - name: Test the debug build
-        run: bash tests/smoke.sh out/debug/php-embed-smoke.exe "debug build" results/test.toml
-
-      - name: Test the release build
-        if: always()
-        run: bash tests/smoke.sh out/sqlite-knowledge-wiki-v*/php-embed-smoke.exe "release build" results/test.toml
-
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: results-test
-          path: results
-
-  # The same build on Windows itself, where it is developed
-  build-windows:
-    name: Build on Windows
-    needs: changes
-    if: needs.changes.outputs.ci == 'true' && needs.changes.outputs.scope == 'full'
-    runs-on: windows-2025
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/cache@v4
-        with:
-          path: offline/php/zig-pkg
-          key: zig-pkg-${{ hashFiles('offline/php/build.zig.zon') }}
-          enableCrossOsArchive: true
-
-      - uses: randyos-org/setup-zig@node24  # v2.2.1 on Node.js 24, until upstream releases it
-        with:
-          version: ${{ env.ZIG_VERSION }}
-
-      - name: Build
-        working-directory: offline/php
-        run: zig build -Doptimize=fast --summary all
-
-      - name: Test
-        run: bash tests/smoke.sh offline/php/zig-out/bin/php-embed-smoke.exe "built on Windows" results/build-windows.toml
-
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: results-build-windows
-          path: results
 
   # The wiki service: the image built from the Dockerfile, then tested through
   # its API by tests/server/check.sh: a fresh install, a restart (the schema
@@ -490,8 +434,8 @@ jobs:
   # change is tested); skipped while SIGN_AZURE_CLIENT_ID is unset
   sign-windows:
     name: Sign the program
-    needs: [version, compile, test]
-    if: ${{ !cancelled() && needs.compile.result == 'success' && needs.test.result == 'success' && needs.version.outputs.sign == 'true' && vars.SIGN_AZURE_CLIENT_ID != '' }}
+    needs: [version, build-windows]
+    if: ${{ !cancelled() && needs.build-windows.result == 'success' && needs.version.outputs.sign == 'true' && vars.SIGN_AZURE_CLIENT_ID != '' }}
     runs-on: windows-2025
     timeout-minutes: 20
     permissions:
@@ -564,11 +508,11 @@ jobs:
   # license.
   package:
     name: Package
-    needs: [version, compile, test, sign-windows]
+    needs: [version, build-windows, sign-windows]
     # a signing job that was skipped (not asked for, or not configured)
     # leaves the program unsigned; one that failed fails the run
     if: >-
-      ${{ !cancelled() && needs.compile.result == 'success' && needs.test.result == 'success'
+      ${{ !cancelled() && needs.build-windows.result == 'success'
       && contains(fromJSON('["success","skipped"]'), needs.sign-windows.result) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -596,7 +540,6 @@ jobs:
         run: |
           mkdir out
           tar -C out -xf unsigned/unsigned.tar
-          rm -r out/debug
           if [ "$WINDOWS" = success ]; then
             [ -f signed/signed-windows.tar ] || { echo "::error::the program was signed but its signed copy was not found"; exit 1; }
             tar -C out -xf signed/signed-windows.tar
@@ -642,11 +585,11 @@ jobs:
           if-no-files-found: error
 
   # The tests' results (tests/result.sh writes them, one per check) and what
-  # skein makes of them: which requirements their tests verified. Each test
+  # skein makes of them: which requirements their tests verified. Each testing
   # job fails by itself; this one reports, and a release publishes both files.
   results:
     name: Results
-    needs: [changes, version, test, build-windows, server]
+    needs: [changes, version, build-windows, server]
     if: ${{ !cancelled() && needs.changes.outputs.ci == 'true' && needs.changes.outputs.scope == 'full' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -686,7 +629,7 @@ jobs:
     # the one check main's ruleset requires: passes when every job passed or
     # was skipped for a change that needs none
     if: always()
-    needs: [changes, version, lint, compile, test, build-windows, server, results, sign-windows, package]
+    needs: [changes, version, lint, build-windows, server, results, sign-windows, package]
     runs-on: ubuntu-24.04
     steps:
       - name: Check the jobs
@@ -699,11 +642,10 @@ jobs:
 
   release:
     name: Release v${{ needs.version.outputs.version }}
-    needs: [version, lint, test, build-windows, server, results, package]
+    needs: [version, lint, build-windows, server, results, package]
     if: >-
       ${{ !cancelled() && needs.version.outputs.release == 'true'
-      && needs.lint.result == 'success' && needs.test.result == 'success'
-      && needs.build-windows.result == 'success' && needs.server.result == 'success'
+      && needs.lint.result == 'success' && needs.build-windows.result == 'success' && needs.server.result == 'success'
       && needs.results.result == 'success' && needs.package.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
