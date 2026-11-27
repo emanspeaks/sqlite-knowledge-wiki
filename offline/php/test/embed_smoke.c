@@ -40,6 +40,12 @@ static LONG WINAPI on_crash(EXCEPTION_POINTERS *ep)
 	SymInitialize(process, NULL, TRUE);
 
 	CONTEXT ctx = *ep->ContextRecord;
+	if (ctx.Rip == 0) {
+		/* A call through a null pointer: the caller's address is on the stack. */
+		ctx.Rip = *(DWORD64 *)ctx.Rsp;
+		ctx.Rsp += 8;
+		fprintf(stderr, "  (null function pointer; trace starts at the caller)\n");
+	}
 	STACKFRAME64 frame;
 	memset(&frame, 0, sizeof frame);
 	frame.AddrPC.Offset = ctx.Rip;

@@ -44,6 +44,7 @@ Upgrade intervals and their tracking; the equipment and labs to verify changes; 
 | Global compiler flags | `php_flags` in `build.zig` | PHP changes. They mirror `win32/build/confutils.js`. |
 | Base configuration defines | `compat/config.base.h` | PHP changes. Compare with what PHP's `configure.js` writes. |
 | Stand-ins for headers PHP's Windows build generates | `compat/timelib_config.h`, `compat/wsyslog.h` | PHP changes `ext/date/config.w32` or `win32/build/wsyslog.mc`. |
+| Process start-up that PHP's DLL entry point does (clock function, file I/O helpers) | `compat/static_init.inc` | PHP changes `win32/dllmain.c`. A static build never runs `DllMain`, so anything added there must be added here. |
 | Source lists, feature switches and config headers of each library | the library functions in `build.zig` | That library changes. Compare with its own build files. |
 | The version string of libxml2 | `libxml2()` in `build.zig` | libxml2 changes. |
 | Expected test output | `test/smoke.expected`, made by `test/make-expected.sh` | A check is added, or a version it prints changes. |

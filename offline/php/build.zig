@@ -67,6 +67,10 @@ const Extension = struct {
     /// Include directories relative to the PHP sources.
     include_dirs: []const []const u8 = &.{},
     flags: []const []const u8 = &.{},
+    /// For an extension that is not part of PHP: its package in
+    /// build.zig.zon and the directory in it that holds the sources.
+    package: ?[]const u8 = null,
+    package_dir: []const u8 = "",
     /// Third-party libraries, by their name in build.zig.zon.
     uses: []const []const u8 = &.{},
     /// Extra headers the extension expects its build to have generated.
@@ -112,6 +116,21 @@ const extensions = [_]Extension{
         .header = "ext/filter/php_filter.h",
         .module = "phpext_filter_ptr",
         .config = "",
+    },
+    .{
+        // Scribunto's Lua engine, in-process. On Windows it has no CPU-time
+        // limit for scripts (it needs POSIX timers); the memory limit works.
+        .name = "luasandbox",
+        .sources = &.{ "alloc.c", "data_conversion.c", "library.c", "luasandbox.c", "timer.c", "luasandbox_lstrlib.c" },
+        .header = "php_luasandbox.h",
+        .module = "phpext_luasandbox_ptr",
+        .config = "#define LUASANDBOX_NO_CLOCK 1\n",
+        .flags = &.{"-DHAVE_CONFIG_H"},
+        .package = "luasandbox",
+        .package_dir = "LuaSandbox-4.1.3",
+        .uses = &.{"lua"},
+        // PECL's build defines these in a config.h.
+        .generated = &.{.{ .name = "config.h", .contents = "#include \"config.w32.h\"\n" }},
     },
     .{
         // Without multibyte regular expressions, which would need Oniguruma.
@@ -315,6 +334,10 @@ pub fn build(b: *std.Build) void {
         \\    return php_register_extensions(php_builtin_extensions, EXTCOUNT);
         \\}}
         \\
+        \\/* In place of win32/dllmain.c, which only runs for a DLL. It is part of
+        \\ * this file so that the linker cannot leave it out of a static link. */
+        \\#include "static_init.inc"
+        \\
     , .{ includes_c.items, modules_c.items }));
 
     const includes: Includes = .{
@@ -327,6 +350,7 @@ pub fn build(b: *std.Build) void {
     libraries.put(arena, "zlib", zlib(b, target, optimize)) catch @panic("OOM");
     libraries.put(arena, "sqlite", sqlite(b, target, optimize)) catch @panic("OOM");
     libraries.put(arena, "libxml2", libxml2(b, target, optimize)) catch @panic("OOM");
+    libraries.put(arena, "lua", lua(b, target, optimize)) catch @panic("OOM");
 
     const php = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
     addPhpIncludes(b, php, includes);
@@ -335,6 +359,9 @@ pub fn build(b: *std.Build) void {
     {
         var it = libraries.valueIterator();
         while (it.next()) |lib| lib.addTo(php);
+    }
+    for (extensions) |ext| {
+        if (ext.package) |package| php.addIncludePath(b.dependency(package, .{}).path(ext.package_dir));
     }
     php.addCSourceFiles(.{ .root = src, .files = &sources.core, .flags = &php_flags });
     php.addCSourceFiles(.{
@@ -371,7 +398,8 @@ pub fn build(b: *std.Build) void {
         for (ext.uses) |name| libraries.get(name).?.addTo(m);
         addPhpIncludes(b, m, includes);
         const flags = std.mem.concat(arena, []const u8, &.{ &php_flags, ext.flags }) catch @panic("OOM");
-        m.addCSourceFiles(.{ .root = src, .files = ext.sources, .flags = flags });
+        const root = if (ext.package) |package| b.dependency(package, .{}).path(ext.package_dir) else src;
+        m.addCSourceFiles(.{ .root = root, .files = ext.sources, .flags = flags });
         php.linkLibrary(b.addLibrary(.{ .name = b.fmt("php_{s}", .{ext.name}), .linkage = .static, .root_module = m }));
     }
 
@@ -443,6 +471,27 @@ fn sqlite(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin
     return .{
         .artifact = b.addLibrary(.{ .name = "sqlite3", .linkage = .static, .root_module = m }),
         .include = dep.path(""),
+    };
+}
+
+/// Lua 5.1, the version Scribunto's modules are written for: the core and
+/// the standard libraries, without the interpreter and compiler programs.
+fn lua(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) Library {
+    const dep = b.dependency("lua", .{});
+    const m = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
+    m.addCSourceFiles(.{
+        .root = dep.path("src"),
+        .files = &.{
+            "lapi.c",    "lauxlib.c",  "lbaselib.c", "lcode.c",   "ldblib.c", "ldebug.c",   "ldo.c",     "ldump.c",
+            "lfunc.c",   "lgc.c",      "linit.c",    "liolib.c",  "llex.c",   "lmathlib.c", "lmem.c",    "loadlib.c",
+            "lobject.c", "lopcodes.c", "loslib.c",   "lparser.c", "lstate.c", "lstring.c",  "lstrlib.c", "ltable.c",
+            "ltablib.c", "ltm.c",      "lundump.c",  "lvm.c",     "lzio.c",
+        },
+        .flags = &library_flags,
+    });
+    return .{
+        .artifact = b.addLibrary(.{ .name = "lua5.1", .linkage = .static, .root_module = m }),
+        .include = dep.path("src"),
     };
 }
 

@@ -73,6 +73,17 @@ $writer->openMemory();
 $writer->startElement('out'); $writer->writeAttribute('k', 'v&w'); $writer->text('<t>'); $writer->endElement();
 echo 'xmlreader ', $seen, ' xmlwriter ', $writer->outputMemory(), "\n";
 
+// Lua the way Scribunto uses it: load a chunk, call into it, let it call
+// back into PHP, and catch a Lua error and a memory limit as exceptions.
+$sandbox = new LuaSandbox();
+$sandbox->setMemoryLimit(8 * 1024 * 1024);
+$sandbox->registerLibrary('php', ['double' => fn ($x) => [$x * 2]]);
+$chunk = $sandbox->loadString('local t = {} for i = 1, 5 do t[#t + 1] = php.double(i) end return table.concat(t, ","), string.rep("ab", 3), _VERSION');
+$lua = $chunk->call();
+try { $sandbox->loadString('error("from lua")')->call(); $err = 'none'; } catch (LuaSandboxRuntimeError $e) { $err = preg_replace('/^.*: /', '', $e->getMessage()); }
+try { $sandbox->loadString('local s = "x" while true do s = s .. s end')->call(); $mem = 'none'; } catch (LuaSandboxMemoryError $e) { $mem = 'memory limit'; }
+echo 'luasandbox ', implode(' ', $lua), ' | ', $err, ' | ', $mem, "\n";
+
 // Fibers switch stacks through the routines converted from PHP's own
 // Microsoft-syntax assembly, so exercise them properly: values passed both
 // ways, nesting, many switches, exceptions crossing the boundary, and a
