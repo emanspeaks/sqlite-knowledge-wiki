@@ -100,10 +100,27 @@ static inline bool wv_is_virtual(const char *path)
 		&& (path[wv_root_len] == '/' || path[wv_root_len] == 0);
 }
 
-static inline const char *wv_strip_scheme(const char *path)
+static const wv_entry *wv_lookup(const char *path, zend_string **abs);
+
+/* Strip file://, and take a relative path that exists under the root to mean
+ * that file: MediaWiki assumes its install directory is the working
+ * directory (it stores some paths relative to it), and the working directory
+ * of the process cannot be a virtual one. buf must hold MAXPATHLEN bytes. */
+static const char *wv_local(const char *path, char *buf)
 {
-	return strncasecmp(path, "file://", 7) == 0 ? path + 7 : path;
+	if (strncasecmp(path, "file://", 7) == 0) path += 7;
+	if (wv_base && path[0] != '/' && path[0] != 0 && !strstr(path, "://")) {
+		size_t n = strlen(path);
+		if (wv_root_len + n + 2 < MAXPATHLEN) {
+			memcpy(buf, wv_root, wv_root_len);
+			buf[wv_root_len] = '/';
+			memcpy(buf + wv_root_len + 1, path, n + 1);
+			if (wv_lookup(buf, NULL)) return buf;
+		}
+	}
+	return path;
 }
+#define wv_strip_scheme(path) wv_local((path), (char[MAXPATHLEN]){0})
 
 /* Normalise the part of an absolute virtual path after the root into buf:
  * no leading or doubled slashes, "." and ".." resolved. Returns the length,

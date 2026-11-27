@@ -33,7 +33,13 @@ const php_flags = [_][]const u8{
     "-DLIBZEND_EXPORTS",
     "-DTSRM_EXPORTS",
     "-DSAPI_EXPORTS",
+    "-D_MBCS",
+    "-DNDEBUG",
+    "-DFD_SETSIZE=256",
     "-DARG_MAX=14500",
+    // ext/date: makes timelib take its allocator from timelib_config.h.
+    // Without it half of timelib uses malloc and half PHP's allocator.
+    "-DHAVE_TIMELIB_CONFIG_H=1",
     // ext/hash's SHA-3
     "-DKeccakP200_excluded",
     "-DKeccakP400_excluded",
@@ -159,6 +165,60 @@ const extensions = [_]Extension{
         .config = "#define HAVE_TOKENIZER 1\n",
     },
     .{
+        .name = "dom",
+        .sources = &sources.dom,
+        .header = "ext/dom/php_dom.h",
+        .module = "phpext_dom_ptr",
+        .config = "#define HAVE_DOM 1\n",
+        .flags = &.{"-DLIBXML_STATIC"},
+        .uses = &.{"libxml2"},
+    },
+    .{
+        .name = "libxml",
+        .sources = &sources.libxml,
+        .header = "ext/libxml/php_libxml.h",
+        .module = "phpext_libxml_ptr",
+        .config = "#define HAVE_LIBXML 1\n",
+        .flags = &.{"-DLIBXML_STATIC"},
+        .uses = &.{"libxml2"},
+    },
+    .{
+        .name = "simplexml",
+        .sources = &sources.simplexml,
+        .header = "ext/simplexml/php_simplexml.h",
+        .module = "phpext_simplexml_ptr",
+        .config = "#define HAVE_SIMPLEXML 1\n",
+        .flags = &.{ "-DLIBXML_STATIC", "-DPHP_SIMPLEXML_EXPORTS" },
+        .uses = &.{"libxml2"},
+    },
+    .{
+        .name = "xml",
+        .sources = &sources.xml,
+        .header = "ext/xml/php_xml.h",
+        .module = "phpext_xml_ptr",
+        .config = "#define HAVE_XML 1\n",
+        .flags = &.{"-DLIBXML_STATIC"},
+        .uses = &.{"libxml2"},
+    },
+    .{
+        .name = "xmlreader",
+        .sources = &sources.xmlreader,
+        .header = "ext/xmlreader/php_xmlreader.h",
+        .module = "phpext_xmlreader_ptr",
+        .config = "#define HAVE_XMLREADER 1\n",
+        .flags = &.{"-DLIBXML_STATIC"},
+        .uses = &.{"libxml2"},
+    },
+    .{
+        .name = "xmlwriter",
+        .sources = &sources.xmlwriter,
+        .header = "ext/xmlwriter/php_xmlwriter.h",
+        .module = "phpext_xmlwriter_ptr",
+        .config = "#define HAVE_XMLWRITER 1\n",
+        .flags = &.{"-DLIBXML_STATIC"},
+        .uses = &.{"libxml2"},
+    },
+    .{
         .name = "zlib",
         .sources = &sources.zlib,
         .header = "ext/zlib/php_zlib.h",
@@ -266,11 +326,16 @@ pub fn build(b: *std.Build) void {
     var libraries: std.StringHashMapUnmanaged(Library) = .empty;
     libraries.put(arena, "zlib", zlib(b, target, optimize)) catch @panic("OOM");
     libraries.put(arena, "sqlite", sqlite(b, target, optimize)) catch @panic("OOM");
+    libraries.put(arena, "libxml2", libxml2(b, target, optimize)) catch @panic("OOM");
 
     const php = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
     addPhpIncludes(b, php, includes);
-    // ext/standard reads compressed Flash files with zlib when it is there.
-    libraries.get("zlib").?.addTo(php);
+    // The core sees every library: internal_functions.c includes each
+    // extension's header, and ext/standard uses zlib when it is there.
+    {
+        var it = libraries.valueIterator();
+        while (it.next()) |lib| lib.addTo(php);
+    }
     php.addCSourceFiles(.{ .root = src, .files = &sources.core, .flags = &php_flags });
     php.addCSourceFiles(.{
         .root = src,
@@ -326,9 +391,12 @@ pub fn build(b: *std.Build) void {
 const Library = struct {
     artifact: *std.Build.Step.Compile,
     include: std.Build.LazyPath,
+    /// A header the library's own configure step would have generated.
+    config_header: ?*std.Build.Step.ConfigHeader = null,
 
     fn addTo(lib: Library, m: *std.Build.Module) void {
         m.addIncludePath(lib.include);
+        if (lib.config_header) |h| m.addConfigHeader(h);
         m.linkLibrary(lib.artifact);
     }
 };
@@ -375,6 +443,82 @@ fn sqlite(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin
     return .{
         .artifact = b.addLibrary(.{ .name = "sqlite3", .linkage = .static, .root_module = m }),
         .include = dep.path(""),
+    };
+}
+
+/// libxml2 with what PHP's XML extensions use, and without the parts that
+/// reach outside the process (HTTP, loadable modules, system catalogs) or need other libraries
+/// (iconv, ICU, zlib). Encodings beyond the built-in ones are not available
+/// to the XML parser; UTF-8, UTF-16, ISO-8859-x and ASCII are built in.
+fn libxml2(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) Library {
+    const dep = b.dependency("libxml2", .{});
+    const version = b.addConfigHeader(.{
+        .style = .{ .autoconf_at = dep.path("include/libxml/xmlversion.h.in") },
+        .include_path = "libxml/xmlversion.h",
+    }, .{
+        .VERSION = "2.15.4",
+        .LIBXML_VERSION_NUMBER = 21504,
+        .LIBXML_VERSION_EXTRA = "",
+        .MODULE_EXTENSION = ".dll",
+        .WITH_THREADS = 0,
+        .WITH_THREAD_ALLOC = 0,
+        .WITH_OUTPUT = 1,
+        .WITH_PUSH = 1,
+        .WITH_READER = 1,
+        .WITH_PATTERN = 1,
+        .WITH_WRITER = 1,
+        .WITH_SAX1 = 1,
+        .WITH_HTTP = 0,
+        .WITH_VALID = 1,
+        .WITH_HTML = 1,
+        .WITH_C14N = 1,
+        .WITH_CATALOG = 0,
+        .WITH_XPATH = 1,
+        .WITH_XPTR = 1,
+        .WITH_XINCLUDE = 1,
+        .WITH_ICONV = 0,
+        .WITH_ICU = 0,
+        .WITH_ISO8859X = 1,
+        .WITH_DEBUG = 0,
+        .WITH_REGEXPS = 1,
+        .WITH_RELAXNG = 1,
+        .WITH_SCHEMAS = 1,
+        .WITH_SCHEMATRON = 0,
+        .WITH_MODULES = 0,
+        .WITH_ZLIB = 0,
+    });
+    const config = b.addWriteFiles();
+    _ = config.add("config.h",
+        \\/* Written by build.zig in place of libxml2's configure. */
+        \\#define HAVE_STDINT_H 1
+        \\#define HAVE_DECL_GETENTROPY 0
+        \\#define HAVE_DECL_GLOB 0
+        \\#define HAVE_DECL_MMAP 0
+        \\
+    );
+    const m = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
+    m.addConfigHeader(version);
+    m.addIncludePath(config.getDirectory());
+    m.addIncludePath(dep.path("include"));
+    m.addIncludePath(dep.path(""));
+    m.addCSourceFiles(.{
+        .root = dep.path(""),
+        .files = &.{
+            "HTMLparser.c", "HTMLtree.c",        "SAX2.c",            "buf.c",       "c14n.c",      "catalog.c",   "chvalid.c",
+            "dict.c",       "encoding.c",        "entities.c",        "error.c",     "globals.c",   "hash.c",      "list.c",
+            "parser.c",     "parserInternals.c", "pattern.c",         "relaxng.c",   "threads.c",   "tree.c",      "uri.c",
+            "valid.c",      "xinclude.c",        "xlink.c",           "xmlIO.c",     "xmlmemory.c", "xmlreader.c", "xmlregexp.c",
+            "xmlsave.c",    "xmlschemas.c",      "xmlschemastypes.c", "xmlstring.c", "xmlwriter.c", "xpath.c",     "xpointer.c",
+        },
+        .flags = &(library_flags ++ [_][]const u8{"-DLIBXML_STATIC"}),
+    });
+    m.linkSystemLibrary("bcrypt", .{});
+    const lib = b.addLibrary(.{ .name = "xml2", .linkage = .static, .root_module = m });
+    lib.installConfigHeader(version);
+    return .{
+        .artifact = lib,
+        .include = dep.path("include"),
+        .config_header = version,
     };
 }
 

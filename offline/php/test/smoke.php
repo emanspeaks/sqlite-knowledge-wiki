@@ -1,6 +1,6 @@
 <?php
 // Each line of output is one check; test/smoke.expected holds the right answers.
-error_reporting(E_ALL);
+error_reporting(E_ALL & ~E_DEPRECATED);
 ini_set('display_errors', '1');
 
 echo 'version ', PHP_VERSION, ' ', PHP_OS_FAMILY, ' ', PHP_SAPI, ' ', PHP_INT_SIZE * 8, "-bit\n";
@@ -50,6 +50,28 @@ echo 'sqlite3 ', $ro->querySingle('SELECT title FROM page WHERE id = 2'), ' ', $
 $ro->close();
 unlink("$dir/test.sqlite");
 rmdir($dir);
+
+$doc = new DOMDocument();
+$doc->loadXML('<wiki><page id="1">Falcon 9</page><page id="2">Electron</page></wiki>');
+$xp = new DOMXPath($doc);
+$html = new DOMDocument();
+@$html->loadHTML('<html><body><p class="x">Héllo <b>world</b></p></body></html>');
+echo 'dom ', $xp->evaluate('string(//page[@id="2"])'), ' ', $doc->getElementsByTagName('page')->length, ' ', $html->getElementsByTagName('b')->item(0)->textContent, ' ', LIBXML_DOTTED_VERSION, "\n";
+$sx = simplexml_load_string('<a><b c="d">e</b><b>f</b></a>');
+echo 'simplexml ', (string)$sx->b[0]['c'], ' ', (string)$sx->b[1], ' ', count($sx->b), "\n";
+$parser = xml_parser_create('UTF-8');
+$names = [];
+xml_set_element_handler($parser, function ($p, $name) use (&$names) { $names[] = $name; }, function () {});
+xml_parse($parser, '<r><x/><y>t</y></r>', true);
+echo 'xml ', implode(',', $names), ' ', utf8_decode('é') === "\xe9" ? 'latin1' : 'no', "\n";
+$reader = new XMLReader();
+$reader->XML('<r><i n="1"/><i n="2"/></r>');
+$seen = '';
+while ($reader->read()) { if ($reader->nodeType === XMLReader::ELEMENT && $reader->name === 'i') { $seen .= $reader->getAttribute('n'); } }
+$writer = new XMLWriter();
+$writer->openMemory();
+$writer->startElement('out'); $writer->writeAttribute('k', 'v&w'); $writer->text('<t>'); $writer->endElement();
+echo 'xmlreader ', $seen, ' xmlwriter ', $writer->outputMemory(), "\n";
 
 // Fibers switch stacks through the routines converted from PHP's own
 // Microsoft-syntax assembly, so exercise them properly: values passed both
