@@ -1,0 +1,11 @@
+--- a/ext/opcache/ZendAccelerator.c
++++ b/ext/opcache/ZendAccelerator.c
+@@ -2829,6 +2829,8 @@
+ 		"fuzzer",
+ 		"frankenphp",
+ 		"ngx-php",
++		/* A host that embeds PHP in its own process, as the offline wiki viewer does. */
++		"embed",
+ 		NULL
+ 	};
+ 	const char **sapi_name;

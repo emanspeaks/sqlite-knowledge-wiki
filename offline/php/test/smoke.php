@@ -41,6 +41,9 @@ $db->exec("INSERT INTO searchindex VALUES ('falcon 9', 'rocket has mass 549054')
 $hits = $db->query("SELECT si_title FROM searchindex WHERE searchindex MATCH 'rocket' ORDER BY si_title")->fetchAll(PDO::FETCH_COLUMN);
 $meta = $db->query('SELECT title FROM page')->getColumnMeta(0);
 echo 'pdo_sqlite ', $db->query('SELECT count(*) FROM page')->fetchColumn(), ' ', implode('+', $hits), ' ', $meta['table'] ?? '?', ' ', $db->query("SELECT json_extract('{\"a\":[1,2]}', '$.a[1]')")->fetchColumn(), "\n";
+// Windows will not delete a file that is still open, so let go of the
+// statement as well as the connection.
+$insert = null;
 $db = null;
 $before = hash_file('sha256', "$dir/test.sqlite");
 $ro = new SQLite3("$dir/test.sqlite", SQLITE3_OPEN_READONLY);
@@ -72,6 +75,14 @@ $writer = new XMLWriter();
 $writer->openMemory();
 $writer->startElement('out'); $writer->writeAttribute('k', 'v&w'); $writer->text('<t>'); $writer->endElement();
 echo 'xmlreader ', $seen, ' xmlwriter ', $writer->outputMemory(), "\n";
+
+// OPcache: compile a script into the cache and find it there.
+$cached = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'php-smoke-' . bin2hex(random_bytes(4)) . '.php';
+file_put_contents($cached, '<?php return 6 * 7;');
+touch($cached, time() - 3600);
+$status = opcache_get_status(false);
+echo 'opcache ', var_export($status['opcache_enabled'] ?? false, true), ' ', var_export(opcache_compile_file($cached), true), ' ', var_export(opcache_is_script_cached($cached), true), ' ', include $cached, ' ', var_export($status['jit']['enabled'] ?? false, true), "\n";
+unlink($cached);
 
 // Lua the way Scribunto uses it: load a chunk, call into it, let it call
 // back into PHP, and catch a Lua error and a memory limit as exceptions.

@@ -523,23 +523,6 @@ pub const mbstring = [_][]const u8{
     "ext/mbstring/php_unicode.c",
 };
 
-/// ext/opcache
-pub const opcache = [_][]const u8{
-    "ext/opcache/ZendAccelerator.c",
-    "ext/opcache/jit/zend_jit.c",
-    "ext/opcache/jit/zend_jit_vm_helpers.c",
-    "ext/opcache/shared_alloc_win32.c",
-    "ext/opcache/zend_accelerator_blacklist.c",
-    "ext/opcache/zend_accelerator_debug.c",
-    "ext/opcache/zend_accelerator_hash.c",
-    "ext/opcache/zend_accelerator_module.c",
-    "ext/opcache/zend_accelerator_util_funcs.c",
-    "ext/opcache/zend_file_cache.c",
-    "ext/opcache/zend_persist.c",
-    "ext/opcache/zend_persist_calc.c",
-    "ext/opcache/zend_shared_alloc.c",
-};
-
 /// ext/pdo
 pub const pdo = [_][]const u8{
     "ext/pdo/pdo.c",

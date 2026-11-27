@@ -3,6 +3,7 @@
  * result. On a crash it prints a symbolised stack trace (the .pdb must be
  * next to the program). */
 #include <sapi/embed/php_embed.h>
+#include <Zend/zend_extensions.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -86,6 +87,18 @@ static LONG WINAPI on_crash(EXCEPTION_POINTERS *ep)
 }
 #endif
 
+/* OPcache is a Zend extension, normally loaded from a DLL named in php.ini.
+ * Linked in statically it has to be registered by hand, after the engine is
+ * up and before PHP starts its Zend extensions. The ini_defaults callback
+ * runs at exactly that point. */
+extern zend_extension zend_extension_entry;
+
+static void register_opcache(HashTable *configuration_hash)
+{
+	(void)configuration_hash;
+	zend_register_extension(&zend_extension_entry, NULL);
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 2 || (strcmp(argv[1], "-r") == 0 && argc < 3)) {
@@ -96,6 +109,7 @@ int main(int argc, char **argv)
 	AddVectoredExceptionHandler(1, on_crash);
 #endif
 	int status = 0;
+	php_embed_module.ini_defaults = register_opcache;
 	PHP_EMBED_START_BLOCK(argc, argv)
 	if (strcmp(argv[1], "-r") == 0) {
 		if (zend_eval_string(argv[2], NULL, "-r") != SUCCESS) status = 1;

@@ -50,7 +50,7 @@ const php_flags = [_][]const u8{
 /// which are all lower-case, do not have. It only matters on build hosts with
 /// case-sensitive file systems.
 const header_spellings = [_][]const u8{
-    "Sddl.h", "WinBase.h", "Winbase.h", "Wincrypt.h", "Windns.h", "Winsock2.h", "Winuser.h", "Ws2tcpip.h",
+    "LMCONS.H", "Sddl.h", "WinBase.h", "Winbase.h", "Wincrypt.h", "Windns.h", "Winsock2.h", "Winuser.h", "Ws2tcpip.h",
 };
 
 /// An optional extension compiled into the library. Each is built as its own
@@ -60,8 +60,9 @@ const Extension = struct {
     name: []const u8,
     sources: []const []const u8,
     /// The header that declares the module, and the module pointer in it.
-    header: []const u8,
-    module: []const u8,
+    /// Null for a Zend extension, which the host registers itself.
+    header: ?[]const u8,
+    module: ?[]const u8,
     /// Appended to main/config.w32.h, as PHP's configure would.
     config: []const u8,
     /// Include directories relative to the PHP sources.
@@ -143,6 +144,24 @@ const extensions = [_]Extension{
         .flags = &.{ "-DHAVE_STRICMP", "-DMBFL_DLL_EXPORT=1", "-DHAVE_CONFIG_H" },
         // PHP's configure copies libmbfl/config.h.w32 to libmbfl/config.h.
         .generated = &.{.{ .name = "libmbfl/config.h", .contents = "#include \"config.h.w32\"\n" }},
+    },
+    .{
+        // Without the JIT, whose build needs a Lua-based code generator. As a
+        // Zend extension it is not in PHP's module list: the host registers
+        // zend_extension_entry before start-up (see test/embed_smoke.c).
+        .name = "opcache",
+        .sources = &.{
+            "ext/opcache/ZendAccelerator.c",             "ext/opcache/shared_alloc_win32.c",
+            "ext/opcache/zend_accelerator_blacklist.c",  "ext/opcache/zend_accelerator_debug.c",
+            "ext/opcache/zend_accelerator_hash.c",       "ext/opcache/zend_accelerator_module.c",
+            "ext/opcache/zend_accelerator_util_funcs.c", "ext/opcache/zend_file_cache.c",
+            "ext/opcache/zend_persist.c",                "ext/opcache/zend_persist_calc.c",
+            "ext/opcache/zend_shared_alloc.c",
+        },
+        .header = null,
+        .module = null,
+        .config = "#define HAVE_OPCACHE 1\n",
+        .include_dirs = &.{"ext/opcache"},
     },
     .{
         .name = "pdo",
@@ -284,6 +303,7 @@ pub fn build(b: *std.Build) void {
     prepare.addDirectoryArg(b.dependency("php", .{}).path(""));
     const src = prepare.addOutputDirectoryArg("php-src");
     prepare.addFileArg(b.path("patches/php-8.3-mingw.patch"));
+    prepare.addFileArg(b.path("patches/php-8.3-opcache-embed.patch"));
 
     // One forwarding header per spelling. #include_next keeps this from
     // including itself where file names are case-insensitive.
@@ -308,8 +328,8 @@ pub fn build(b: *std.Build) void {
     }
     for (extensions) |ext| {
         config.appendSlice(arena, ext.config) catch @panic("OOM");
-        includes_c.appendSlice(arena, b.fmt("#include \"{s}\"\n", .{ext.header})) catch @panic("OOM");
-        modules_c.appendSlice(arena, b.fmt("\t{s},\n", .{ext.module})) catch @panic("OOM");
+        if (ext.header) |header| includes_c.appendSlice(arena, b.fmt("#include \"{s}\"\n", .{header})) catch @panic("OOM");
+        if (ext.module) |module| modules_c.appendSlice(arena, b.fmt("\t{s},\n", .{module})) catch @panic("OOM");
     }
     _ = generated.add("main/config.w32.h", config.items);
     const internal_functions = generated.add("internal_functions.c", b.fmt(
