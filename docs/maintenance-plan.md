@@ -39,6 +39,8 @@ Upgrade intervals and their tracking; the equipment and labs to verify changes; 
 | --- | --- | --- |
 | Versions, URLs and hashes of PHP and every library | `build.zig.zon` | Any version changes. Verify the publisher's checksum or signature before pinning. |
 | Patch for building PHP against MinGW-w64 headers (nine files) | `patches/php-8.3-mingw.patch` | PHP changes. Re-base any hunk the build reports as not applying. |
+| Patch that lets OPcache run under the embed SAPI (one line) | `patches/php-8.3-opcache-embed.patch` | PHP changes; also if the viewer's SAPI gets a name of its own. |
+| Registration of OPcache, which PHP normally loads from a DLL | `test/embed_smoke.c` (later the viewer's host) | PHP changes how Zend extensions start. |
 | Lists of PHP source files per extension | `sources.zig` | PHP changes. Compare with `win32/build/config.w32` and each extension's `config.w32`. |
 | Per-extension flags, include directories and config defines | the `extensions` table in `build.zig` | PHP changes, or an extension is added. They mirror each extension's `config.w32`; a missing flag can compile and still be wrong (a dropped `HAVE_TIMELIB_CONFIG_H` once corrupted the heap in the date extension). |
 | Global compiler flags | `php_flags` in `build.zig` | PHP changes. They mirror `win32/build/confutils.js`. |

@@ -76,6 +76,18 @@ $writer->openMemory();
 $writer->startElement('out'); $writer->writeAttribute('k', 'v&w'); $writer->text('<t>'); $writer->endElement();
 echo 'xmlreader ', $seen, ' xmlwriter ', $writer->outputMemory(), "\n";
 
+echo 'iconv ', bin2hex(iconv('UTF-8', 'ISO-8859-1', 'é')), ' ', iconv('UTF-8', 'ASCII//TRANSLIT', 'naïve café'), ' ', iconv_strlen('日本語', 'UTF-8'), ' ', bin2hex(iconv('UTF-8', 'UTF-16BE', 'A')), "\n";
+
+// GD the way MediaWiki makes thumbnails: decode, scale, encode.
+$im = imagecreatetruecolor(64, 48);
+imagefilledrectangle($im, 0, 0, 63, 47, imagecolorallocate($im, 200, 30, 30));
+ob_start(); imagepng($im); $png = ob_get_clean();
+ob_start(); imagejpeg($im, null, 90); $jpg = ob_get_clean();
+$thumb = imagescale(imagecreatefromstring($jpg), 16, 12);
+$px = imagecolorsforindex($thumb, imagecolorat($thumb, 8, 6));
+$info = getimagesizefromstring($png);
+echo 'gd ', bin2hex(substr($png, 1, 3)), ' ', bin2hex(substr($jpg, 0, 2)), ' ', imagesx($thumb), 'x', imagesy($thumb), ' ', $px['red'] > 180 && $px['green'] < 60 ? 'red' : 'wrong', ' ', $info[0], 'x', $info[1], ' ', $info['mime'], "\n";
+
 // OPcache: compile a script into the cache and find it there.
 $cached = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'php-smoke-' . bin2hex(random_bytes(4)) . '.php';
 file_put_contents($cached, '<?php return 6 * 7;');

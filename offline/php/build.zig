@@ -50,7 +50,7 @@ const php_flags = [_][]const u8{
 /// which are all lower-case, do not have. It only matters on build hosts with
 /// case-sensitive file systems.
 const header_spellings = [_][]const u8{
-    "LMCONS.H", "Sddl.h", "WinBase.h", "Winbase.h", "Wincrypt.h", "Windns.h", "Winsock2.h", "Winuser.h", "Ws2tcpip.h",
+    "LMCONS.H", "Sddl.h", "Wingdi.h", "WinBase.h", "Winbase.h", "Wincrypt.h", "Windns.h", "Winsock2.h", "Winuser.h", "Ws2tcpip.h",
 };
 
 /// An optional extension compiled into the library. Each is built as its own
@@ -117,6 +117,73 @@ const extensions = [_]Extension{
         .header = "ext/filter/php_filter.h",
         .module = "phpext_filter_ptr",
         .config = "",
+    },
+    .{
+        // PHP's bundled copy of libgd, for thumbnails: PNG, JPEG, GIF and BMP.
+        // No FreeType (text drawing), XPM, WebP or AVIF.
+        .name = "gd",
+        .sources = &.{
+            "ext/gd/gd.c",
+            "ext/gd/libgd/gd2copypal.c",
+            "ext/gd/libgd/gd.c",
+            "ext/gd/libgd/gdcache.c",
+            "ext/gd/libgd/gdfontg.c",
+            "ext/gd/libgd/gdfontl.c",
+            "ext/gd/libgd/gdfontmb.c",
+            "ext/gd/libgd/gdfonts.c",
+            "ext/gd/libgd/gdfontt.c",
+            "ext/gd/libgd/gdft.c",
+            "ext/gd/libgd/gd_gd2.c",
+            "ext/gd/libgd/gd_gd.c",
+            "ext/gd/libgd/gd_gif_in.c",
+            "ext/gd/libgd/gd_gif_out.c",
+            "ext/gd/libgd/gdhelpers.c",
+            "ext/gd/libgd/gd_io.c",
+            "ext/gd/libgd/gd_io_dp.c",
+            "ext/gd/libgd/gd_io_file.c",
+            "ext/gd/libgd/gd_io_ss.c",
+            "ext/gd/libgd/gd_jpeg.c",
+            "ext/gd/libgd/gdkanji.c",
+            "ext/gd/libgd/gd_png.c",
+            "ext/gd/libgd/gd_ss.c",
+            "ext/gd/libgd/gdtables.c",
+            "ext/gd/libgd/gd_topal.c",
+            "ext/gd/libgd/gd_wbmp.c",
+            "ext/gd/libgd/gdxpm.c",
+            "ext/gd/libgd/wbmp.c",
+            "ext/gd/libgd/gd_xbm.c",
+            "ext/gd/libgd/gd_security.c",
+            "ext/gd/libgd/gd_transform.c",
+            "ext/gd/libgd/gd_filter.c",
+            "ext/gd/libgd/gd_pixelate.c",
+            "ext/gd/libgd/gd_rotate.c",
+            "ext/gd/libgd/gd_color_match.c",
+            "ext/gd/libgd/gd_webp.c",
+            "ext/gd/libgd/gd_avif.c",
+            "ext/gd/libgd/gd_crop.c",
+            "ext/gd/libgd/gd_interpolation.c",
+            "ext/gd/libgd/gd_matrix.c",
+            "ext/gd/libgd/gd_bmp.c",
+            "ext/gd/libgd/gd_tga.c",
+        },
+        .header = "ext/gd/php_gd.h",
+        .module = "phpext_gd_ptr",
+        .config = "#define HAVE_LIBGD 1\n#define HAVE_GD_BUNDLED 1\n#define HAVE_GD_PNG 1\n#define HAVE_GD_BMP 1\n#define HAVE_GD_TGA 1\n#define HAVE_LIBPNG 1\n#define HAVE_LIBJPEG 1\n#define HAVE_GD_JPG 1\n",
+        .include_dirs = &.{ "ext/gd/libgd", "ext/gd" },
+        // gd.c calls gdImageGetInterpolationMethod(), which the bundled gd.h
+        // does not declare. Microsoft's compiler lets that pass; clang needs
+        // telling. The function returns an int-sized enum, so it is safe.
+        .flags = &.{ "-DPHP_GD_EXPORTS=1", "-DHAVE_GD_GET_INTERPOLATION", "-Wno-error=implicit-function-declaration" },
+        .uses = &.{ "libpng", "jpeg", "zlib", "libiconv" },
+    },
+    .{
+        .name = "iconv",
+        .sources = &sources.iconv,
+        .header = "ext/iconv/php_iconv.h",
+        .module = "phpext_iconv_ptr",
+        .config = "#define HAVE_ICONV 1\n#define HAVE_LIBICONV 1\n#define ICONV_ALIASED_LIBICONV 1\n#define PHP_ICONV_IMPL \"\\\"libiconv\\\"\"\n",
+        .flags = &.{"-DPHP_ICONV_EXPORTS"},
+        .uses = &.{"libiconv"},
     },
     .{
         // Scribunto's Lua engine, in-process. On Windows it has no CPU-time
@@ -280,10 +347,12 @@ const builtin_modules = [_][2][]const u8{
 };
 
 const system_libs = [_][]const u8{
-    "ws2_32", "kernel32", "advapi32", "shell32", "iphlpapi", "dnsapi",
-    "psapi",  "bcrypt",   "ole32",    "user32",  "shlwapi",
+    "ws2_32",  "kernel32", "advapi32", "shell32", "iphlpapi", "dnsapi",
+    "psapi",   "bcrypt",   "ole32",    "user32",  "shlwapi",
+    // ext/gd (screen capture functions)
+     "gdi32",
     // the smoke program's crash handler
-     "dbghelp",
+    "dbghelp",
 };
 
 pub fn build(b: *std.Build) void {
@@ -371,6 +440,9 @@ pub fn build(b: *std.Build) void {
     libraries.put(arena, "sqlite", sqlite(b, target, optimize)) catch @panic("OOM");
     libraries.put(arena, "libxml2", libxml2(b, target, optimize)) catch @panic("OOM");
     libraries.put(arena, "lua", lua(b, target, optimize)) catch @panic("OOM");
+    libraries.put(arena, "libiconv", libiconv(b, target, optimize)) catch @panic("OOM");
+    libraries.put(arena, "libpng", libpng(b, target, optimize, libraries.get("zlib").?)) catch @panic("OOM");
+    libraries.put(arena, "jpeg", jpeg(b, target, optimize)) catch @panic("OOM");
 
     const php = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
     addPhpIncludes(b, php, includes);
@@ -441,9 +513,12 @@ const Library = struct {
     include: std.Build.LazyPath,
     /// A header the library's own configure step would have generated.
     config_header: ?*std.Build.Step.ConfigHeader = null,
+    /// A directory of such headers.
+    extra_include: ?std.Build.LazyPath = null,
 
     fn addTo(lib: Library, m: *std.Build.Module) void {
         m.addIncludePath(lib.include);
+        if (lib.extra_include) |dir| m.addIncludePath(dir);
         if (lib.config_header) |h| m.addConfigHeader(h);
         m.linkLibrary(lib.artifact);
     }
@@ -491,6 +566,100 @@ fn sqlite(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin
     return .{
         .artifact = b.addLibrary(.{ .name = "sqlite3", .linkage = .static, .root_module = m }),
         .include = dep.path(""),
+    };
+}
+
+fn libpng(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    z: Library,
+) Library {
+    const dep = b.dependency("libpng", .{});
+    // libpng ships the configuration its default build produces.
+    const generated = b.addWriteFiles();
+    _ = generated.addCopyFile(dep.path("scripts/pnglibconf.h.prebuilt"), "pnglibconf.h");
+    const m = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
+    m.addIncludePath(generated.getDirectory());
+    z.addTo(m);
+    m.addCSourceFiles(.{
+        .root = dep.path(""),
+        .files = &.{
+            "png.c",      "pngerror.c", "pngget.c",   "pngmem.c", "pngpread.c", "pngread.c",  "pngrio.c",   "pngrtran.c",
+            "pngrutil.c", "pngset.c",   "pngtrans.c", "pngwio.c", "pngwrite.c", "pngwtran.c", "pngwutil.c",
+        },
+        // The portable C code only: no hand-written SIMD.
+        .flags = &(library_flags ++ [_][]const u8{ "-DPNG_INTEL_SSE_OPT=0", "-DPNG_ARM_NEON_OPT=0" }),
+    });
+    const lib = b.addLibrary(.{ .name = "png16", .linkage = .static, .root_module = m });
+    return .{ .artifact = lib, .include = dep.path(""), .extra_include = generated.getDirectory() };
+}
+
+/// The Independent JPEG Group's libjpeg.
+fn jpeg(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) Library {
+    const dep = b.dependency("jpeg", .{});
+    // jconfig.vc is the configuration libjpeg ships for Windows compilers.
+    const generated = b.addWriteFiles();
+    _ = generated.addCopyFile(dep.path("jconfig.vc"), "jconfig.h");
+    const m = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
+    m.addIncludePath(generated.getDirectory());
+    m.addCSourceFiles(.{
+        .root = dep.path(""),
+        .files = &.{
+            "jaricom.c",  "jcapimin.c", "jcapistd.c", "jcarith.c",  "jccoefct.c", "jccolor.c",  "jcdctmgr.c", "jchuff.c",
+            "jcinit.c",   "jcmainct.c", "jcmarker.c", "jcmaster.c", "jcomapi.c",  "jcparam.c",  "jcprepct.c", "jcsample.c",
+            "jctrans.c",  "jdapimin.c", "jdapistd.c", "jdarith.c",  "jdatadst.c", "jdatasrc.c", "jdcoefct.c", "jdcolor.c",
+            "jddctmgr.c", "jdhuff.c",   "jdinput.c",  "jdmainct.c", "jdmarker.c", "jdmaster.c", "jdmerge.c",  "jdpostct.c",
+            "jdsample.c", "jdtrans.c",  "jerror.c",   "jfdctflt.c", "jfdctfst.c", "jfdctint.c", "jidctflt.c", "jidctfst.c",
+            "jidctint.c", "jquant1.c",  "jquant2.c",  "jutils.c",   "jmemmgr.c",  "jmemnobs.c",
+        },
+        .flags = &library_flags,
+    });
+    const lib = b.addLibrary(.{ .name = "jpeg", .linkage = .static, .root_module = m });
+    return .{ .artifact = lib, .include = dep.path(""), .extra_include = generated.getDirectory() };
+}
+
+/// GNU libiconv: character set conversion. The library is under the LGPL.
+fn libiconv(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) Library {
+    const dep = b.dependency("libiconv", .{});
+    const header = b.addConfigHeader(.{
+        .style = .{ .autoconf_at = dep.path("include/iconv.h.in") },
+        .include_path = "iconv.h",
+    }, .{
+        .DLL_VARIABLE = "",
+        .EILSEQ = "",
+        .ICONV_CONST = "",
+        .USE_MBSTATE_T = 1,
+        .BROKEN_WCHAR_H = 0,
+    });
+    const generated = b.addWriteFiles();
+    _ = generated.addCopyFile(dep.path("libcharset/include/localcharset.h.in"), "localcharset.h");
+    _ = generated.add("config.h",
+        \\/* Written by build.zig in place of libiconv's configure. */
+        \\#define ICONV_CONST
+        \\#define ENABLE_EXTRA 1
+        \\#define HAVE_WCRTOMB 1
+        \\#define HAVE_MBRTOWC 1
+        \\#define HAVE_WORKING_O_NOFOLLOW 0
+        \\#define HAVE_VISIBILITY 0
+        \\#define WORDS_LITTLEENDIAN 1
+        \\#define ENABLE_RELOCATABLE 0
+        \\
+    );
+    const m = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
+    m.addConfigHeader(header);
+    m.addIncludePath(generated.getDirectory());
+    m.addIncludePath(dep.path("include"));
+    m.addIncludePath(dep.path("lib"));
+    m.addCSourceFiles(.{
+        .root = dep.path(""),
+        .files = &.{ "lib/iconv.c", "libcharset/lib/localcharset.c" },
+        .flags = &(library_flags ++ [_][]const u8{ "-DLIBDIR=\"\"", "-DBUILDING_LIBICONV", "-DBUILDING_LIBCHARSET", "-DIN_LIBRARY" }),
+    });
+    return .{
+        .artifact = b.addLibrary(.{ .name = "iconv", .linkage = .static, .root_module = m }),
+        .include = generated.getDirectory(),
+        .config_header = header,
     };
 }
 
