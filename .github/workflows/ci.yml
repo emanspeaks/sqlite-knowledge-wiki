@@ -29,6 +29,10 @@ name: CI
 #                                         runtime's test program: the offline
 #                                         viewer is not written yet.
 #   sqlite-knowledge-wiki-vX-sbom.cdx.json  the bill of materials
+#   sqlite-knowledge-wiki-vX-test-results.toml
+#                                         the results of the run's tests, for
+#                                         `skein coverage --results`, and
+#   sqlite-knowledge-wiki-vX-coverage.txt what skein makes of them
 #   LICENSE, SHA256SUMS, and SHA256SUMS.asc when GPG signing is on
 #
 # Signing, as skein's and zfls's ci.yml do it: only a release, and a run
@@ -191,21 +195,19 @@ jobs:
 
       - name: zig fmt
         working-directory: offline/php
-        run: zig fmt --check build.zig build sources.zig icu_sources.zig components.zig
+        run: zig fmt --check build.zig build tools sources.zig icu_sources.zig components.zig
 
       - name: Markdown
         run: npx --yes markdownlint-cli2@0.24.2 "**/*.md"
 
       # the requirements, with the released skein
+      - uses: ./.github/actions/setup-skein
+        with:
+          version: ${{ env.SKEIN_VERSION }}
+          sha256: ${{ env.SKEIN_SHA256 }}
+
       - name: skein check
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          name="skein-v$SKEIN_VERSION-x86_64-linux"
-          gh release download "v$SKEIN_VERSION" --repo chasingdaylight/skein -p "$name.tar.gz" -D "$RUNNER_TEMP"
-          echo "$SKEIN_SHA256  $RUNNER_TEMP/$name.tar.gz" | sha256sum -c -
-          tar -C "$RUNNER_TEMP" -xzf "$RUNNER_TEMP/$name.tar.gz"
-          "$RUNNER_TEMP/$name/bin/skein" check
+        run: skein check
 
   # The Windows program, cross-compiled on Linux, unsigned: its package
   # folder (the program, the licenses, the bill of materials, the test
@@ -241,13 +243,13 @@ jobs:
           zig build --prefix zig-out/debug --summary all
           zig build -Doptimize=fast --prefix zig-out/release --summary all
           zig build licenses --prefix zig-out/release
-          # the SBOM needs the Composer lock, which the Server job writes when
-          # it is missing; the Package job then fails, without blocking the
-          # tests here
-          if [ -f ../../composer/composer.lock ]; then
+          # the SBOM needs the Composer lock and the image's inventory, which
+          # the Server job writes when they are missing; the Package job then
+          # fails, without blocking the tests here
+          if [ -f ../../composer/composer.lock ] && [ -f ../../image/inventory.tsv ]; then
             zig build sbom -Dversion="$VERSION" --prefix zig-out/release
           else
-            echo "::warning::composer/composer.lock is not committed: no SBOM"
+            echo "::warning::composer/composer.lock or image/inventory.tsv is not committed: no SBOM"
           fi
 
       - name: Stage
@@ -290,15 +292,17 @@ jobs:
           tar -C out -xf unsigned/unsigned.tar
 
       - name: Test the debug build
-        run: |
-          out/debug/php-embed-smoke.exe offline/php/test/smoke.php | tee debug.out
-          diff --strip-trailing-cr offline/php/test/smoke.expected debug.out
+        run: bash tests/smoke.sh out/debug/php-embed-smoke.exe "debug build" results/test.toml
 
       - name: Test the release build
         if: always()
-        run: |
-          out/sqlite-knowledge-wiki-v*/php-embed-smoke.exe offline/php/test/smoke.php | tee release.out
-          diff --strip-trailing-cr offline/php/test/smoke.expected release.out
+        run: bash tests/smoke.sh out/sqlite-knowledge-wiki-v*/php-embed-smoke.exe "release build" results/test.toml
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: results-test
+          path: results
 
   # The same build on Windows itself, where it is developed
   build-windows:
@@ -325,15 +329,22 @@ jobs:
         run: zig build -Doptimize=fast --summary all
 
       - name: Test
-        run: |
-          offline/php/zig-out/bin/php-embed-smoke.exe offline/php/test/smoke.php | tee native.out
-          diff --strip-trailing-cr offline/php/test/smoke.expected native.out
+        run: bash tests/smoke.sh offline/php/zig-out/bin/php-embed-smoke.exe "built on Windows" results/build-windows.toml
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: results-build-windows
+          path: results
 
   # The wiki service: the image built from the Dockerfile, then tested through
-  # its API by tests/server/check.sh: a fresh install, a restart (the data
-  # persists and nothing is installed again), and read-only mode. The image is
-  # built to be tested, not published. Without a committed Composer lock it
-  # resolves one, uploads it as the composer-lock artifact, and fails.
+  # its API by tests/server/check.sh: a fresh install, a restart (the schema
+  # update runs, the data persists and nothing is installed again), one with
+  # MW_AUTO_UPDATE off, and read-only mode. The image is built to be tested,
+  # not published. Without a committed Composer lock it resolves one, uploads
+  # it as the composer-lock artifact, and fails; likewise when the image's
+  # packages are not what image/inventory.tsv lists (the image-inventory
+  # artifact).
   server:
     name: Server
     needs: changes
@@ -343,6 +354,7 @@ jobs:
     env:
       ADMIN_USER: Admin
       ADMIN_PASSWORD: ci-only-password-1234
+      RESULTS: results/server.toml
     steps:
       - uses: actions/checkout@v7
 
@@ -366,6 +378,27 @@ jobs:
           path: composer.lock
           if-no-files-found: error
 
+      # what the SBOM lists of the image besides the pinned components: its
+      # Debian packages, PHP and PHP extensions
+      - name: The image's inventory
+        id: inventory
+        run: |
+          docker run --rm -i --entrypoint sh sqlite-knowledge-wiki:latest -s < image/inventory.sh > inventory.tsv
+          if [ -f image/inventory.tsv ] && cmp -s image/inventory.tsv inventory.tsv; then
+            echo "the image holds what image/inventory.tsv lists: $(grep -c '^deb' inventory.tsv) Debian packages"
+          else
+            echo "::warning::the image's packages are not what image/inventory.tsv lists"
+            [ ! -f image/inventory.tsv ] || diff image/inventory.tsv inventory.tsv || true
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/upload-artifact@v7
+        if: steps.inventory.outputs.changed == 'true'
+        with:
+          name: image-inventory
+          path: inventory.tsv
+          if-no-files-found: error
+
       - name: Configure
         run: |
           sed -e 's|^MW_SERVER=.*|MW_SERVER=http://localhost:8080|' .env.example > .env
@@ -385,19 +418,23 @@ jobs:
         run: |
           docker compose up -d
           bash "$RUNNER_TEMP/healthy.sh"
-          docker compose logs wiki | grep -F "[wiki] First-run setup complete"
           bash tests/server/check.sh write
 
-      - name: After a restart, the data is there and nothing is installed again
+      - name: After a restart, the schema is updated, the data is there and nothing is installed again
         run: |
           docker compose down
           docker compose up -d
           bash "$RUNNER_TEMP/healthy.sh"
-          if docker compose logs wiki | grep -F "[wiki] No database"; then
-            echo "::error::the wiki was installed again"
-            exit 1
-          fi
           bash tests/server/check.sh read
+
+      - name: With MW_AUTO_UPDATE off, no update runs
+        run: |
+          sed -i 's/^MW_AUTO_UPDATE=.*/MW_AUTO_UPDATE=false/' .env
+          grep -qx MW_AUTO_UPDATE=false .env
+          docker compose down
+          docker compose up -d
+          bash "$RUNNER_TEMP/healthy.sh"
+          bash tests/server/check.sh read-no-update
 
       - name: Read-only mode
         run: |
@@ -410,10 +447,21 @@ jobs:
         if: always()
         run: docker compose logs --no-color | tail -200
 
-      - name: A lock must be committed
-        if: steps.build.outputs.lock == 'new'
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: results-server
+          path: results
+          if-no-files-found: ignore
+
+      - name: The lock and the inventory must be committed
+        if: steps.build.outputs.lock == 'new' || steps.inventory.outputs.changed == 'true'
+        env:
+          LOCK: ${{ steps.build.outputs.lock }}
+          INVENTORY: ${{ steps.inventory.outputs.changed }}
         run: |
-          echo "::error::commit the composer-lock artifact of this run as composer/composer.lock"
+          [ "$LOCK" != new ] || echo "::error::commit the composer-lock artifact of this run as composer/composer.lock"
+          [ "$INVENTORY" != true ] || echo "::error::commit the image-inventory artifact of this run as image/inventory.tsv"
           exit 1
 
   # Azure Artifact Signing, through the Entra identity whose federated
@@ -572,12 +620,52 @@ jobs:
           path: dist
           if-no-files-found: error
 
+  # The tests' results (tests/result.sh writes them, one per check) and what
+  # skein makes of them: which requirements their tests verified. Each test
+  # job fails by itself; this one reports, and a release publishes both files.
+  results:
+    name: Results
+    needs: [changes, version, test, build-windows, server]
+    if: ${{ !cancelled() && needs.changes.outputs.ci == 'true' && needs.changes.outputs.scope == 'full' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: results-*
+          merge-multiple: true
+          path: results
+
+      - uses: ./.github/actions/setup-skein
+        with:
+          version: ${{ env.SKEIN_VERSION }}
+          sha256: ${{ env.SKEIN_SHA256 }}
+
+      - name: Coverage
+        run: |
+          name="sqlite-knowledge-wiki-v$VERSION"
+          mkdir out
+          cat results/*.toml > "out/$name-test-results.toml"
+          echo "$(grep -c '^\[\[result\]\]' "out/$name-test-results.toml") results"
+          skein coverage --results "out/$name-test-results.toml" | tee "out/$name-coverage.txt"
+          skein coverage --results "out/$name-test-results.toml" --markdown >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: out
+          if-no-files-found: error
+
   ci:
     name: CI
     # the one check main's ruleset requires: passes when every job passed or
     # was skipped for a change that needs none
     if: always()
-    needs: [changes, version, lint, compile, test, build-windows, server, sign-windows, package]
+    needs: [changes, version, lint, compile, test, build-windows, server, results, sign-windows, package]
     runs-on: ubuntu-24.04
     steps:
       - name: Check the jobs
@@ -590,12 +678,12 @@ jobs:
 
   release:
     name: Release v${{ needs.version.outputs.version }}
-    needs: [version, lint, test, build-windows, server, package]
+    needs: [version, lint, test, build-windows, server, results, package]
     if: >-
       ${{ !cancelled() && needs.version.outputs.release == 'true'
       && needs.lint.result == 'success' && needs.test.result == 'success'
       && needs.build-windows.result == 'success' && needs.server.result == 'success'
-      && needs.package.result == 'success' }}
+      && needs.results.result == 'success' && needs.package.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -617,10 +705,15 @@ jobs:
           name: dist
           path: dist
 
+      - uses: actions/download-artifact@v8
+        with:
+          name: test-results
+          path: dist
+
       - name: Check the packages
         run: |
           ls -l dist
-          for f in server.zip php-runtime-test-windows-x86_64.zip sbom.cdx.json; do
+          for f in server.zip php-runtime-test-windows-x86_64.zip sbom.cdx.json test-results.toml coverage.txt; do
             if [ ! -f "dist/sqlite-knowledge-wiki-v$VERSION-$f" ]; then
               echo "::error::no sqlite-knowledge-wiki-v$VERSION-$f"
               exit 1

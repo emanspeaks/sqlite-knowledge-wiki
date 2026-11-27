@@ -1,0 +1,25 @@
+name: Set up skein
+description: The released skein for Linux, checked against its SHA-256 and put on the PATH.
+
+inputs:
+  version:
+    description: The skein release, without the v
+    required: true
+  sha256:
+    description: The SHA-256 of its x86_64-linux archive
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        VERSION: ${{ inputs.version }}
+        SHA256: ${{ inputs.sha256 }}
+      run: |
+        name="skein-v$VERSION-x86_64-linux"
+        gh release download "v$VERSION" --repo chasingdaylight/skein -p "$name.tar.gz" -D "$RUNNER_TEMP"
+        echo "$SHA256  $RUNNER_TEMP/$name.tar.gz" | sha256sum -c -
+        tar -C "$RUNNER_TEMP" -xzf "$RUNNER_TEMP/$name.tar.gz"
+        echo "$RUNNER_TEMP/$name/bin" >> "$GITHUB_PATH"

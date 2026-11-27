@@ -15,7 +15,7 @@ Conclusions; remaining deficiencies, limitations and constraints, and their impa
 
 ## Results
 
-The requirements verified, from the results recorded against the procedures:
+The requirements verified, from the results recorded against the procedures. The tests' results are not kept in the repository: each release publishes those of the run that made it (`sqlite-knowledge-wiki-vX-test-results.toml`) and what Skein makes of them (`-coverage.txt`), and `skein coverage --results FILE` reads a downloaded results file. Without one, the table below counts only results kept in the repository:
 
 ```skein
 coverage

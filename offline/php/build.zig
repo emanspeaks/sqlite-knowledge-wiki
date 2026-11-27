@@ -278,8 +278,8 @@ pub fn build(b: *std.Build) !void {
 
     // `zig build sbom`: the software bill of materials, zig-out/sbom.cdx.json.
     // The offline viewer's components come from this build's manifest; the
-    // wiki service's from the Dockerfile and the Composer lock, which a build
-    // step reads so that a change to them is noticed.
+    // wiki service's from the Dockerfile, the Composer lock and the image's
+    // inventory, which a build step reads so that a change to them is noticed.
     const sbom_files = b.addWriteFiles();
     const sbom_base = sbom_files.add("sbom-base.cdx.json", try sbom(b));
     const sbom_wiki = b.addRunArtifact(b.addExecutable(.{ .name = "sbom_wiki", .root_module = b.createModule(.{
@@ -290,6 +290,7 @@ pub fn build(b: *std.Build) !void {
     sbom_wiki.addFileArg2(sbom_base, .{});
     sbom_wiki.addFileArg2(b.path("../../Dockerfile"), .{});
     sbom_wiki.addFileArg2(b.path("../../composer/composer.lock"), .{});
+    sbom_wiki.addFileArg2(b.path("../../image/inventory.tsv"), .{});
     const sbom_file = sbom_wiki.addOutputFileArg2("sbom.cdx.json", .{});
     const sbom_step = b.step("sbom", "Write the software bill of materials (CycloneDX JSON)");
     sbom_step.dependOn(&b.addInstallFile(sbom_file, "sbom.cdx.json").step);

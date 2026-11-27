@@ -10,7 +10,11 @@
 .github/*
 # the Linux prototype of the virtual filesystem, used for profiling
 offline/vfs/*
+# the script that lists the image's packages for image/inventory.tsv (which
+# ships: the SBOM is made from it)
+image/inventory.sh
 # the public key the release job checks its GPG signature against
 SIGNING-KEY.asc
-# the wiki service's API tests, run by the Server job
+# the tests' scripts: the wiki service's API tests, run by the Server job,
+# and the runs of the PHP runtime's test script
 tests/*
