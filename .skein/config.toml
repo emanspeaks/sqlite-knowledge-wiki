@@ -1,0 +1,54 @@
+# where the items are: Markdown documents whose paragraphs can be items
+[[sources]]
+path = "docs"
+
+[template."npr7150.2d"]
+# The software class of the project (NPR 7150.2D, Appendix D; SWE-020) (needed)
+"class" = "C"
+# Whether the project has safety-critical software (SWE-205, per NASA-STD-8739.8)
+"safety-critical" = "false"
+
+# NPR 7150.2D as NASA publishes it, and the handbook's reading of each requirement:
+# read-only, written by skein init from the template (skein's tools/npr7150)
+[[sources]]
+path = "standards/npr7150.2d"
+read_only = true
+
+# The maturity of the documents (the handbook's topic 7.08): each document's front
+# matter names its product (item = "PRD-01") and its maturity; skein check warns of
+# one below what its product expects at the review the project is at next. Set
+# milestone to that review: mcr, srr, sw_rr, mdr, sdr, pdr, cdr, sir, trr, sar or orr.
+[maturity]
+order = ["D", "P", "B", "U", "F"]
+# milestone = "pdr"
+
+# The results people record with `skein result` (the inspections of
+# docs/test-procedures.md). CI's tests' results are not kept: a release
+# publishes those of its run (test-results.toml).
+[results]
+paths = ["verification/results"]
+
+# Tests cite the software requirements they verify, in comments: `// verifies: SRS-001`
+# in the offline PHP's test script, `# verifies: SRS-001` in the wiki service's.
+[[citations]]
+name = "offline-test"
+path = "offline/php/test"
+files = [".php"]
+marker = "// verifies:"
+to = ["requirement"]
+
+[[citations]]
+name = "server-test"
+path = "tests/server"
+files = [".sh"]
+marker = "# verifies:"
+to = ["requirement"]
+
+# Code cites the design it implements, `// implements: DES-001`, once there is a design:
+#
+# [[citations]]
+# name = "code"
+# path = "src"
+# files = [".c"]
+# marker = "// implements:"
+# to = ["design"]

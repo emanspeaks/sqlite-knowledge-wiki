@@ -1,0 +1,9 @@
+buildx
+direnv
+gofmt
+randyos
+zfls's
+
+Zig
+zfls
+rstd

@@ -1,4 +1,14 @@
 .git
 .env
+admin-password.txt
 README.md
 docker-compose.yml
+# not part of the image
+.github/
+.skein/
+docs/
+standards/
+offline/
+image/
+tools/
+tests/

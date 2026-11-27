@@ -1,1 +1,14 @@
 .env
+
+# Zig
+.zig-cache*/
+zig-out/
+zig-pkg/
+*.o
+.zigversion
+
+*.log
+.local-gitignore
+.claude/
+/CLAUDE.local.md
+admin-password.txt

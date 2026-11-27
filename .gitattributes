@@ -1,0 +1,3 @@
+# Keep line endings as committed on every platform: the patches must match
+# the sources byte for byte, and the entrypoint runs in a Linux container.
+* text=auto eol=lf

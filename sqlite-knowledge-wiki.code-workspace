@@ -1,0 +1,162 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/.zig-cache/**": true,
+      "**/zig-pkg/**": true,
+      "**/zig-cache*/**": true,
+    },
+    "files.watcherExclude": {
+      "**/.zig-cache/**": true,
+      "**/zig-pkg/**": true,
+      "**/zig-cache*/**": true,
+      "**/zig-out/**": true,
+    },
+    "search.exclude": {
+      // an external standard's text, read-only
+      "standards/**": true,
+    },
+    "files.associations": {
+      "VERSION": "plaintext",
+      ".local-gitignore": "gitignore",
+      "no-ci.txt": "gitignore",
+      "ci-only.txt": "gitignore",
+      "docs-only.txt": "gitignore",
+      ".clangd": "yaml",
+    },
+    "files.insertFinalNewline": true,
+    "terminal.integrated.automationProfile.windows": {
+      "path": "C:\\windows\\system32\\cmd.exe",
+    },
+    "ltex.additionalRules.motherTongue": "en-US",
+    // Zig 0.17.1, the version in .zigversion (not committed), which the Zig
+    // extension reads
+    "zig.zls.enabled": "on",
+    "zig.zls.inlayHintsShowParameterName": false,
+    "zig.zls.inlayHintsExcludeSingleArgument": false,
+    "zig.zls.inlayHintsShowBuiltin": false,
+    "zig.zls.inlayHintsShowStructLiteralFieldType": false,
+    "zig.zls.inlayHintsShowVariableTypeHints": false,
+    "zig.zls.warnStyle": true,
+    "zig.zls.enableArgumentPlaceholders": false,
+    "debug.onTaskErrors": "abort",  // will switch to problems pane otherwise
+    "editor.semanticTokenColorCustomizations": {
+      "rules": {
+        "*.deprecated": {
+          // highlight semantic tokens that are marked as "deprecated"
+          "strikethrough": true
+        },
+      },
+    },
+
+    // clangd is the language server for the C that `zig cc` compiles. The
+    // Microsoft C/C++ extension stays for debugging only.
+    "C_Cpp.intelliSenseEngine": "disabled",
+
+    // no CMake project here; the C dependencies carry a CMakeLists.txt
+    "cmake.ignoreCMakeListsMissing": true,
+    "cmake.configureOnOpen": false,
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "offline/php: zig build",
+        "type": "shell",
+        "command": "${config:zig.path}",
+        "args": [
+          "build",
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}/offline/php"
+        },
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        },
+        "problemMatcher": [],
+        "presentation": {
+          "clear": true,
+          "reveal": "always",
+          "panel": "shared",
+          "focus": true,
+          "revealProblems": "never",
+        },
+      },
+      {
+        "label": "offline/php: smoke test",
+        "type": "shell",
+        "command": "${workspaceFolder}/offline/php/zig-out/bin/php-embed-smoke.exe",
+        "args": [
+          "test/smoke.php",
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}/offline/php"
+        },
+        "dependsOn": "offline/php: zig build",
+        "group": "test",
+        "problemMatcher": [],
+        "presentation": {
+          "clear": true,
+          "reveal": "always",
+          "panel": "shared",
+          "revealProblems": "never",
+        },
+      },
+      {
+        "label": "offline/php: zig build sbom licenses",
+        "type": "shell",
+        "command": "${config:zig.path}",
+        "args": [
+          "build",
+          "sbom",
+          "licenses",
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}/offline/php"
+        },
+        "problemMatcher": [],
+        "presentation": {
+          "clear": true,
+          "reveal": "always",
+          "panel": "shared",
+          "revealProblems": "never",
+        },
+      },
+    ]
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "offline/php: smoke test (cppvsdbg)",
+        "type": "cppvsdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/offline/php/zig-out/bin/php-embed-smoke.exe",
+        "args": [
+          "test/smoke.php",
+        ],
+        "cwd": "${workspaceFolder}/offline/php",
+        "preLaunchTask": "offline/php: zig build",
+        "console": "integratedTerminal",
+      },
+    ],
+    "compounds": []
+  },
+  "extensions": {
+    "recommendations": [
+      "ziglang.vscode-zig",
+      "llvm-vs-code-extensions.vscode-clangd",
+      "ms-vscode.cpptools",  // windows debug
+      "davidanson.vscode-markdownlint",
+      "streetsidesoftware.code-spell-checker",
+      "streetsidesoftware.code-spell-checker-win32",
+      "ltex-plus.vscode-ltex-plus",
+      "timonwong.shellcheck",
+    ]
+  }
+}
