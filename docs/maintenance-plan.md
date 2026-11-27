@@ -49,7 +49,7 @@ Upgrade intervals and their tracking; the equipment and labs to verify changes; 
 | POSIX timer functions for LuaSandbox's CPU-time limit, on Win32 | `compat/luasandbox_posix_timers.c` and `.h` | LuaSandbox changes how it uses timers (`timer.c`). |
 | Process start-up that PHP's DLL entry point does (clock function, file I/O helpers) | `compat/static_init.inc` | PHP changes `win32/dllmain.c`. A static build never runs `DllMain`, so anything added there must be added here. |
 | Source lists, feature switches and config headers of each library | the library functions in `build.zig` | That library changes. Compare with its own build files. |
-| What the SBOM says about each component beyond its source and hash: version, licence, supplier, published checksum; and the lists of libraries bundled inside PHP and of the wiki software | `components.zig` | Any version changes. The build refuses a dependency with no entry; the bundled and wiki lists are checked by hand. |
+| What the SBOM says about each component beyond its source and hash: version, license, supplier, published checksum; and the lists of libraries bundled inside PHP and of the wiki software | `components.zig` | Any version changes. The build refuses a dependency with no entry; the bundled and wiki lists are checked by hand. |
 | ICU's source file lists | `icu_sources.zig` | ICU changes. Copy from `source/common/sources.txt`, `source/i18n/sources.txt` and `source/io/sources.txt`. |
 | The ICU version in the data symbol and file name (`icudt79`) | `icu()` in `build.zig` | ICU changes. |
 | The version string of libxml2 | `libxml2()` in `build.zig` | libxml2 changes. |

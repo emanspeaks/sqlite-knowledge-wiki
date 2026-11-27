@@ -25,7 +25,7 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 
 %requirement[SRS-001 functional verification=test derives=SYS-001] The image shall run MediaWiki 1.43 (LTS) with Semantic MediaWiki and Wikibase repository and client enabled together.
 
-%requirement[SRS-002 functional verification=test derives=SYS-002] The wiki service shall keep the main database, object cache, localisation cache and job queue in SQLite files in one data directory.
+%requirement[SRS-002 functional verification=test derives=SYS-002] The wiki service shall keep the main database, object cache, localization cache and job queue in SQLite files in one data directory.
 
 %requirement[SRS-003 functional verification=test derives=SYS-003] On first run, when no database file exists, the entrypoint shall install MediaWiki on SQLite and create the administrator account, taking the password from a file and never from a command-line argument.
 
@@ -37,7 +37,7 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 
 %requirement[SRS-007 functional verification=inspection derives=SYS-003] Maintenance shall run as `www-data`, and the entrypoint shall fix the ownership of the data and images volumes.
 
-%requirement[SRS-008 functional verification=test derives=SYS-003] The image shall provide a `jobrunner` command that runs the job queue in a loop and performs no initialisation.
+%requirement[SRS-008 functional verification=test derives=SYS-003] The image shall provide a `jobrunner` command that runs the job queue in a loop and performs no initialization.
 
 %requirement[SRS-009 functional verification=test derives=SYS-001 rationale="Both extensions register a namespace named Property."] Wikibase properties shall live in a namespace distinct from Semantic MediaWiki's `Property` namespace, named by `WB_PROPERTY_NAMESPACE` (default `WbProperty`).
 
@@ -67,7 +67,7 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 
 %requirement[SRS-032 functional verification=test derives=SYS-012] The Math extension shall be enabled in the wiki service and in the offline viewer, rendering formulas without an external service.
 
-%requirement[SRS-028 functional verification=inspection derives=SYS-013] The offline viewer shall ship a prebaked English localisation cache.
+%requirement[SRS-028 functional verification=inspection derives=SYS-013] The offline viewer shall ship a prebaked English localization cache.
 
 %requirement[SRS-029 functional verification=test derives=SYS-012] Thumbnails shall be generated offline with PHP's own image library; ImageMagick shall not be required.
 
@@ -125,17 +125,17 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 
 %requirement[SRS-087 constraint verification=test derives=SYS-018] The offline PHP shall build its fiber context-switch routines from PHP's own sources; the routines shall not be copied from another project. Fibers shall be covered by the build's tests.
 
-%requirement[SRS-088 constraint verification=inspection derives=SYS-018 rationale="The project prefers permissive licences; GPL and LGPL components are accepted where the wiki requires them."] A third-party component under a copyleft licence shall be used only where no permissively licensed alternative meets the need, and each such component shall be listed with its licence.
+%requirement[SRS-088 constraint verification=inspection derives=SYS-018 rationale="The project prefers permissive licenses; GPL and LGPL components are accepted where the wiki requires them."] A third-party component under a copyleft license shall be used only where no permissively licensed alternative meets the need, and each such component shall be listed with its license.
 
 %requirement[SRS-089 interface verification=demonstration derives=SYS-003,SYS-007] A release shall be published from GitHub Actions with two separate packages: a zip of only the files needed to deploy the wiki service, and the Windows executable. The container image itself shall not be built or published by the release.
 
-%requirement[SRS-090 constraint verification=inspection derives=SYS-018] Each release shall include a software bill of materials naming every third-party component, its version, licence and source. It shall be generated from the build's own dependency manifest.
+%requirement[SRS-090 constraint verification=inspection derives=SYS-018] Each release shall include a software bill of materials naming every third-party component, its version, license and source. It shall be generated from the build's own dependency manifest.
 
-%requirement[SRS-091 constraint verification=inspection derives=SYS-021] The project's own code shall be under the MIT licence.
+%requirement[SRS-091 constraint verification=inspection derives=SYS-021] The project's own code shall be under the MIT license.
 
 %requirement[SRS-092 constraint verification=inspection derives=SYS-018] A release shall carry SHA-256 checksums of its files and a detached GPG signature of the checksum file, verifiable with a public key kept in the repository.
 
-%requirement[SRS-093 constraint verification=inspection derives=SYS-021] The project's licence shall be a release artifact, and the package of the offline viewer shall contain the licence text of every third-party component in it.
+%requirement[SRS-093 constraint verification=inspection derives=SYS-021] The project's license shall be a release artifact, and the package of the offline viewer shall contain the license text of every third-party component in it.
 
 %requirement[SRS-085 constraint verification=inspection derives=SYS-021] Requirements shall be kept as Skein items in this repository and `skein check` shall report no problems.
 

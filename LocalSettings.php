@@ -83,7 +83,7 @@ $wgDBpassword = '';
 $wgSQLiteDataDir = rtrim( wikiEnv( 'MW_DATA_DIR', '/var/www/data' ), '/' );
 
 // The three blocks below are what the MediaWiki 1.43 installer generates for
-// SQLite: caches, the localisation cache and the job queue each get their own
+// SQLite: caches, the localization cache and the job queue each get their own
 // database file so they do not contend with the main database for its lock.
 $wgObjectCaches[CACHE_DB] = [
 	'class' => SqlBagOStuff::class,
@@ -98,7 +98,7 @@ $wgObjectCaches[CACHE_DB] = [
 		'flags' => 0
 	]
 ];
-$wgLocalisationCacheConf['storeServer'] = [
+$wgLocalizationCacheConf['storeServer'] = [
 	'type' => 'sqlite',
 	'dbname' => "{$wgDBname}_l10n_cache",
 	'tablePrefix' => '',
@@ -145,7 +145,7 @@ if ( !$wgSecretKey ) {
 			. "$wgSQLiteDataDir/secret.key.\n" );
 	} else {
 		http_response_code( 500 );
-		echo "Wiki is not initialised: no secret key.";
+		echo "Wiki is not initialized: no secret key.";
 	}
 	exit( 1 );
 }

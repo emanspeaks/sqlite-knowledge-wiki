@@ -1,0 +1,9 @@
+{
+  "ignores": [
+    // an external standard's text, read-only
+    "standards/**",
+    "**/zig-pkg/**",
+    "**/.zig-cache/**",
+    "**/zig-out/**",
+  ]
+}

@@ -80,6 +80,7 @@
         "sources.zig",
         "icu_sources.zig",
         "components.zig",
+        "build",
         "compat",
         "patches",
         "test",

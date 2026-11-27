@@ -167,7 +167,7 @@ static const wv_entry *wv_find(const char *rel, size_t len)
 }
 
 /* Look up an absolute virtual path. If abs is given it receives the
- * normalised absolute path. */
+ * normalized absolute path. */
 static const wv_entry *wv_lookup(const char *path, zend_string **abs)
 {
 	char buf[MAXPATHLEN];

@@ -3,7 +3,7 @@
 //! hash). `zig build sbom` fails if a dependency in build.zig.zon has no
 //! entry here, so a new dependency cannot be added without one.
 //!
-//! Licences are SPDX identifiers. `sha256` is the published checksum of the
+//! Licenses are SPDX identifiers. `sha256` is the published checksum of the
 //! release archive, checked when the version was pinned; empty where the
 //! source is a git tag, which `source_note` then identifies.
 
@@ -20,7 +20,7 @@ pub const Component = struct {
     /// Where it comes from, for a component not in build.zig.zon.
     source: []const u8 = "",
     source_note: []const u8 = "",
-    /// The file in the component's release that holds its licence, for a
+    /// The file in the component's release that holds its license, for a
     /// fetched component. Empty where the release has none.
     license_file: []const u8 = "",
 };
@@ -42,7 +42,7 @@ pub const fetched = [_]Component{
 
 /// Libraries that come inside the PHP release and are compiled with it. The
 /// versions are the ones PHP 8.3.37 bundles. This list covers the bundled
-/// libraries with a licence of their own; it is not every file in PHP with a
+/// libraries with a license of their own; it is not every file in PHP with a
 /// separate notice.
 pub const bundled_in_php = [_]Component{
     .{ .name = "Zend Engine", .version = "4.3.37", .license = "Zend-2.0", .supplier = "Zend Technologies", .purpose = "PHP's language engine", .source = "PHP release, Zend/" },

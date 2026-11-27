@@ -1,11 +1,9 @@
 # sqlite-knowledge-wiki
 
-A containerized team wiki: **MediaWiki 1.43 LTS + Semantic MediaWiki 7.4 +
-Wikibase (repo and client)**, with **SQLite as the only database**. No MySQL or
-MariaDB anywhere. Configuration comes from environment variables.
+A containerized team wiki: **MediaWiki 1.43 LTS + Semantic MediaWiki 7.4 + Wikibase (repo and client)**, with **SQLite as the only database**. No MySQL or MariaDB anywhere. Configuration comes from environment variables.
 
 | Component | Version |
-|---|---|
+| --- | --- |
 | MediaWiki | 1.43 (official `mediawiki:1.43` image, PHP 8.3) |
 | Semantic MediaWiki | `~7.4` from Packagist (build arg `SMW_VERSION`) |
 | Wikibase | branch `REL1_43` with its JavaScript submodules (build arg `WIKIBASE_BRANCH`) |
@@ -16,29 +14,24 @@ MariaDB anywhere. Configuration comes from environment variables.
 cp .env.example .env
 ```
 
-Edit `.env`: set `MW_SERVER` to the public URL and `MW_ADMIN_PASSWORD` to a
-password of at least 10 characters. Then:
+Edit `.env`: set `MW_SERVER` to the public URL and `MW_ADMIN_PASSWORD` to a password of at least 10 characters. Then:
 
 ```bash
 docker compose up --build -d
 ```
 
-The first start installs MediaWiki, creates the admin account and builds the
-SMW and Wikibase tables; `docker compose ps` shows `healthy` when it is done.
-The wiki listens on `127.0.0.1:8080` (change with `WIKI_BIND`).
+The first start installs MediaWiki, creates the admin account and builds the SMW and Wikibase tables; `docker compose ps` shows `healthy` when it is done. The wiki listens on `127.0.0.1:8080` (change with `WIKI_BIND`).
 
 Two services share one image and two named volumes:
 
-- `wiki` — Apache + PHP. Initializes or updates the database on start.
-- `jobrunner` — runs MediaWiki's job queue in a loop. It starts once `wiki` is
-  healthy. SMW and Wikibase both depend on jobs running, so keep it.
+- `wiki`: Apache + PHP. Initializes or updates the database on start.
+- `jobrunner`: runs MediaWiki's job queue in a loop. It starts once `wiki` is healthy. SMW and Wikibase both depend on jobs running, so keep it.
 - `wiki-data` volume → `/var/www/data`: the SQLite files and the secret key.
 - `wiki-images` volume → `/var/www/html/images`: uploads.
 
 ### Behind a reverse proxy
 
-`MW_SERVER` must be the URL users type, including `https://`. Proxy to the
-published port and pass the client address:
+`MW_SERVER` must be the URL users type, including `https://`. Proxy to the published port and pass the client address:
 
 ```nginx
 location / {
@@ -50,17 +43,14 @@ location / {
 }
 ```
 
-Set `MW_TRUSTED_PROXIES` to the address the proxy connects from (as seen inside
-the container, usually the Docker bridge range) so MediaWiki logs real client
-IPs instead of the proxy's.
+Set `MW_TRUSTED_PROXIES` to the address the proxy connects from (as seen inside the container, usually the Docker bridge range) so MediaWiki logs real client IPs instead of the proxy's.
 
 ## Environment variables
 
-`.env.example` is the reference; every variable is documented there. Booleans
-accept `1`/`true`/`yes`/`on`.
+`.env.example` is the reference; every variable is documented there. Booleans accept `1`/`true`/`yes`/`on`.
 
 | Variable | Default | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `MW_SERVER` | *(required)* | Public URL of the wiki |
 | `MW_SITE_NAME` | `Wiki` | Site name |
 | `MW_SCRIPT_PATH` | *(empty)* | URL path prefix, e.g. `/w`; empty = site root |
@@ -96,20 +86,13 @@ accept `1`/`true`/`yes`/`on`.
 
 The Math extension is on by default and renders formulas to MathML inside PHP (`native` mode); it needs no rendering service. The image's PHP already has the multibyte regular-expression support it uses.
 
-Settings that have no variable go in a PHP file mounted into
-`/etc/mediawiki/conf.d/`; every `*.php` there is loaded at the end of
-`LocalSettings.php`.
+Settings that have no variable go in a PHP file mounted into `/etc/mediawiki/conf.d/`; every `*.php` there is loaded at the end of `LocalSettings.php`.
 
 ### Read-only mode
 
-`MW_READ_ONLY=<message>` sets `$wgReadOnly`. Reading, searching, `#ask` queries
-and Wikibase reads keep working; every edit is refused with the message. The
-entrypoint also skips `update.php` and the jobrunner idles, so nothing writes
-wiki content. Logging in still works through the web form; the API's
-`clientlogin` is refused (MediaWiki treats it as a write).
+`MW_READ_ONLY=<message>` sets `$wgReadOnly`. Reading, searching, `#ask` queries and Wikibase reads keep working; every edit is refused with the message. The entrypoint also skips `update.php` and the jobrunner idles, so nothing writes wiki content. Logging in still works through the web form; the API's `clientlogin` is refused (MediaWiki treats it as a write).
 
-MediaWiki still writes to its cache database (`wikicache.sqlite`) and the main
-database stays in WAL mode, so the data directory itself must remain writable.
+MediaWiki still writes to its cache database (`wikicache.sqlite`) and the main database stays in WAL mode, so the data directory itself must remain writable.
 
 ## Maintenance commands
 
@@ -121,13 +104,9 @@ Always pass `-u www-data`, so nothing in the data volume ends up owned by root.
 
 ## Backup
 
-The database runs in SQLite's WAL mode: recent writes live in
-`wiki.sqlite-wal` until they are checkpointed. **Do not copy `wiki.sqlite` on
-its own while the wiki is running** — the copy can be missing data or be
-inconsistent. Use one of these instead.
+The database runs in SQLite's WAL mode: recent writes live in `wiki.sqlite-wal` until they are checkpointed. **Do not copy `wiki.sqlite` on its own while the wiki is running**: the copy can be missing data or be inconsistent. Use one of these instead.
 
-**Online (wiki keeps running).** SQLite's backup API takes a consistent
-snapshot:
+**Online (wiki keeps running).** SQLite's backup API takes a consistent snapshot:
 
 ```bash
 docker compose exec -u www-data wiki sh -c 'mkdir -p /var/www/data/backup && sqlite3 /var/www/data/wiki.sqlite ".backup /var/www/data/backup/wiki.sqlite" && cp /var/www/data/secret.key /var/www/data/backup/'
@@ -151,14 +130,9 @@ docker run --rm -v sqlite-knowledge-wiki_wiki-data:/data:ro -v "$PWD":/out alpin
 docker compose start
 ```
 
-What matters: `wiki.sqlite` (all content, users, SMW and Wikibase data),
-`secret.key` (unless you set `MW_SECRET_KEY`), and the `wiki-images` volume if
-uploads are enabled. `wikicache.sqlite` and `wiki_l10n_cache.sqlite` are caches
-and are rebuilt; `wiki_jobqueue.sqlite` holds only pending jobs.
+What matters: `wiki.sqlite` (all content, users, SMW and Wikibase data), `secret.key` (unless you set `MW_SECRET_KEY`), and the `wiki-images` volume if uploads are enabled. `wikicache.sqlite` and `wiki_l10n_cache.sqlite` are caches and are rebuilt; `wiki_jobqueue.sqlite` holds only pending jobs.
 
-**Restore.** Stop the services, put `wiki.sqlite` (and `secret.key`) back in the
-data volume, delete any stale `wiki.sqlite-wal` and `wiki.sqlite-shm`, start
-again. Check a database with:
+**Restore.** Stop the services, put `wiki.sqlite` (and `secret.key`) back in the data volume, delete any stale `wiki.sqlite-wal` and `wiki.sqlite-shm`, start again. Check a database with:
 
 ```bash
 docker compose exec -u www-data wiki sqlite3 /var/www/data/wiki.sqlite "PRAGMA integrity_check;"
@@ -173,69 +147,46 @@ docker compose exec -u www-data wiki sqlite3 /var/www/data/wiki.sqlite "PRAGMA i
    docker compose build --pull --no-cache
    ```
 
-   For a new MediaWiki release line, set `MEDIAWIKI_IMAGE` and a matching
-   `WIKIBASE_BRANCH` (Wikibase branches track MediaWiki releases, e.g.
-   `REL1_43`), and an `SMW_VERSION` that supports it.
+   For a new MediaWiki release line, set `MEDIAWIKI_IMAGE` and a matching `WIKIBASE_BRANCH` (Wikibase branches track MediaWiki releases, e.g. `REL1_43`), and an `SMW_VERSION` that supports it.
 3. Recreate the containers:
 
    ```bash
    docker compose up -d
    ```
 
-   The entrypoint runs `update.php --quick` on start (`MW_AUTO_UPDATE=true`),
-   which applies schema changes for core, SMW and Wikibase.
+   The entrypoint runs `update.php --quick` on start (`MW_AUTO_UPDATE=true`), which applies schema changes for core, SMW and Wikibase.
 
 ## Two gotchas this image handles
 
-Neither is specific to SQLite; both bite any install that combines SMW with
-Wikibase.
+Neither is specific to SQLite; both bite any install that combines SMW with Wikibase.
 
-**1. Install order.** Running `update.php` once with both extensions enabled on
-a fresh database fails: SMW creates pages before Wikibase's tables exist, and a
-Wikibase client hook queries the missing `wb_items_per_site` table. The
-entrypoint runs `update.php` with SMW disabled first, then again with SMW
-enabled. It decides by checking whether `wb_items_per_site` exists, so an
-interrupted first run recovers, and enabling Wikibase later on an existing wiki
-works too.
+**1. Install order.** Running `update.php` once with both extensions enabled on a fresh database fails: SMW creates pages before Wikibase's tables exist, and a Wikibase client hook queries the missing `wb_items_per_site` table. The entrypoint runs `update.php` with SMW disabled first, then again with SMW enabled. It decides by checking whether `wb_items_per_site` exists, so an interrupted first run recovers, and enabling Wikibase later on an existing wiki works too.
 
-**2. Namespace clash.** SMW and Wikibase both register a namespace named
-"Property" (SMW at 102, Wikibase at 122). SMW wins, and creating a Wikibase
-property throws `PageAssertionException ... Special:Badtitle/NS122:P1`. Setting
-`$wgExtraNamespaces[122]` alone does not fix it, because Wikibase's
-default-namespace hook overwrites it later. `LocalSettings.php` therefore sets
-`$wgWBRepoSettings['defaultEntityNamespaces'] = false` and declares the entity
-namespaces and the entity source by hand. The result:
+**2. Namespace clash.** SMW and Wikibase both register a namespace named "Property" (SMW at 102, Wikibase at 122). SMW wins, and creating a Wikibase property throws `PageAssertionException ... Special:Badtitle/NS122:P1`. Setting `$wgExtraNamespaces[122]` alone does not fix it, because Wikibase's default-namespace hook overwrites it later. `LocalSettings.php` therefore sets `$wgWBRepoSettings['defaultEntityNamespaces'] = false` and declares the entity namespaces and the entity source by hand. The result:
 
-- `Property:Has mass` — a Semantic MediaWiki property
-- `WbProperty:P1` — a Wikibase property (rename with `WB_PROPERTY_NAMESPACE`)
-- `Item:Q1` — a Wikibase item
+- `Property:Has mass`: a Semantic MediaWiki property
+- `WbProperty:P1`: a Wikibase property (rename with `WB_PROPERTY_NAMESPACE`)
+- `Item:Q1`: a Wikibase item
 
-A third thing worth knowing: the main object cache is the shared SQLite cache
-(`CACHE_DB`), not APCu. The jobrunner is a separate container, and with a
-per-container APCu cache the web container kept serving stale SMW property
-types after the jobrunner had updated them.
+A third thing worth knowing: the main object cache is the shared SQLite cache (`CACHE_DB`), not APCu. The jobrunner is a separate container, and with a per-container APCu cache the web container kept serving stale SMW property types after the jobrunner had updated them.
 
 ## Build notes
 
-- Wikibase's editing UI lives in git submodules; the Dockerfile fetches them at
-  full depth with retries, because some are hosted on Wikimedia's Phabricator,
-  which rejects shallow fetches and rate-limits.
-- `install.php` refuses to run when it finds a `LocalSettings.php`, so the
-  first-run install runs with `MW_CONFIG_FILE` unset and writes its generated
-  settings to a throwaway directory. The real settings file is baked into the
-  image at `/etc/mediawiki/LocalSettings.php`, outside the web root.
-- Other entrypoint commands: `jobrunner` (job loop, no initialization) and any
-  other command, which is executed as given.
+- Wikibase's editing UI lives in git submodules; the Dockerfile fetches them at full depth with retries, because some are hosted on Wikimedia's Phabricator, which rejects shallow fetches and rate-limits.
+- `install.php` refuses to run when it finds a `LocalSettings.php`, so the first-run install runs with `MW_CONFIG_FILE` unset and writes its generated settings to a throwaway directory. The real settings file is baked into the image at `/etc/mediawiki/LocalSettings.php`, outside the web root.
+- Other entrypoint commands: `jobrunner` (job loop, no initialization) and any other command, which is executed as given.
 
 ## Releases
 
-`VERSION` holds the next release's version. A push to `main` with an untagged version is built, tested on Windows, packaged and published by `.github/workflows/release.yml`. A release has:
+`VERSION` holds the next release's version. Work reaches `dev` through pull requests; a release is made when the standing pull request from `dev` is merged into `main` with a version that has no tag yet (`.github/workflows/ci.yml`). A release has:
 
 - `sqlite-knowledge-wiki-vX-server.zip`: the files to deploy the wiki service (the image is built where it is deployed, with `docker compose up --build`).
-- the Windows program, as its own zip.
-- `sqlite-knowledge-wiki-vX-sbom.cdx.json`: the bill of materials (CycloneDX), with every third-party component's version, licence, source and checksum. `zig build sbom` in `offline/php` writes it.
-- `SHA256SUMS`.
+- the Windows program, as its own zip, with the license text of every third-party component.
+- `sqlite-knowledge-wiki-vX-sbom.cdx.json`: the bill of materials (CycloneDX), with every third-party component's version, license, source and checksum. `zig build sbom` in `offline/php` writes it.
+- `LICENSE` and `SHA256SUMS`, with `SHA256SUMS.asc`, its detached GPG signature.
 
-## Licence
+To verify a release, import [`SIGNING-KEY.asc`](SIGNING-KEY.asc) (Chasing Daylight release signing, `gpg@chasingdaylight.dev`, fingerprint `9431 3677 98CC D8E2 8BC0 E589 BB30 DEF7 34E5 F690`), then run `gpg --verify SHA256SUMS.asc SHA256SUMS` and `sha256sum -c SHA256SUMS` in the folder of the downloaded files. The Windows program is also signed with Authenticode.
 
-The code in this repository is under the MIT licence (`LICENSE`). The software it builds and deploys has licences of its own, listed in the bill of materials: MediaWiki, Semantic MediaWiki and Wikibase are GPL-2.0-or-later, and two libraries inside PHP are LGPL.
+## License
+
+The code in this repository is under the MIT license (`LICENSE`). The software it builds and deploys has licenses of its own, listed in the bill of materials: MediaWiki, Semantic MediaWiki and Wikibase are GPL-2.0-or-later, and two libraries inside PHP are LGPL.

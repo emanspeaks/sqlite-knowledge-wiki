@@ -1,8 +1,8 @@
 #!/bin/bash
 # Entrypoint for the wiki image.
 #
-#   apache2-foreground (default)  initialise or update the wiki, then serve it
-#   jobrunner                     run the job queue in a loop; no initialisation
+#   apache2-foreground (default)  initialize or update the wiki, then serve it
+#   jobrunner                     run the job queue in a loop; no initialization
 #   anything else                 run it as given (e.g. `php maintenance/run.php ...`)
 set -euo pipefail
 
