@@ -7,7 +7,6 @@ docker-compose.yml
 .github/
 .skein/
 docs/
-standards/
 offline/
 image/
 tools/

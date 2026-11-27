@@ -13,7 +13,7 @@ A team wiki (MediaWiki with Semantic MediaWiki and Wikibase) on SQLite, in two p
 
 ## Requirements
 
-- `docs/system-requirements.md` (`SYS-`) and `docs/srs.md` (`SRS-`) hold the requirements, in Skein's format, with the NPR 7150.2D template at Class C (`.skein/config.toml`); `AGENTS.md` explains the format. `standards/npr7150.2d/` is the standard's text, read-only.
+- `docs/system-requirements.md` (`SYS-`) and `docs/srs.md` (`SRS-`) hold the requirements, in Skein's format, with the NPR 7150.2D template at Class C (`.skein/config.toml`); `AGENTS.md` explains the format. The standards' own text (NPR 7150.2D, NASA-STD-8739.8B) comes with Skein's templates, read-only; it is not copied into the repository.
 - A change to what the software does changes its requirement in the same pull request. A requirement that goes away keeps its marker with the status `removed`; an ID is never changed or used again.
 - A decision emanspeaks makes in a conversation that changes what the software must do becomes a requirement, or changes one, before the work it decides.
 - `docs/maintenance-plan.md` lists every part of the PHP build kept by hand; a new one goes there in the same change.

@@ -12,5 +12,4 @@
 # the requirements and plans, Skein's configuration, and the standard's text
 docs/*
 .skein/*
-standards/*
 verification/*
