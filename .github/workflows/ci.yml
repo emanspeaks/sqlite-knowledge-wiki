@@ -2,8 +2,9 @@ name: CI
 
 # Modeled on skein's and zfls's ci.yml. Every pull request into main and every
 # push to main builds the Windows program (cross-compiled on Linux, and built
-# on Windows itself), runs its tests on Windows, and checks zig fmt, the
-# Markdown and the requirements (skein check). Pushes to dev and pull requests
+# on Windows itself) and runs its tests on Windows, builds the wiki's image and
+# tests the wiki through its API, and checks zig fmt, the Markdown and the
+# requirements (skein check). Pushes to dev and pull requests
 # into it are not run: dev is checked as a whole by the pull request that
 # releases it (to main), which each merge into dev restarts; start the
 # workflow by hand on a branch to check it alone
@@ -239,14 +240,22 @@ jobs:
         run: |
           zig build --prefix zig-out/debug --summary all
           zig build -Doptimize=fast --prefix zig-out/release --summary all
-          zig build sbom licenses -Dversion="$VERSION" --prefix zig-out/release
+          zig build licenses --prefix zig-out/release
+          # the SBOM needs the Composer lock, which the Server job writes when
+          # it is missing; the Package job then fails, without blocking the
+          # tests here
+          if [ -f ../../composer/composer.lock ]; then
+            zig build sbom -Dversion="$VERSION" --prefix zig-out/release
+          else
+            echo "::warning::composer/composer.lock is not committed: no SBOM"
+          fi
 
       - name: Stage
         run: |
           name="sqlite-knowledge-wiki-v$VERSION-php-runtime-test-windows-x86_64"
           mkdir -p "out/$name" out/debug
           cp offline/php/zig-out/release/bin/php-embed-smoke.exe LICENSE "out/$name/"
-          cp offline/php/zig-out/release/sbom.cdx.json "out/$name/"
+          [ ! -f offline/php/zig-out/release/sbom.cdx.json ] || cp offline/php/zig-out/release/sbom.cdx.json "out/$name/"
           cp -r offline/php/zig-out/release/licenses "out/$name/third-party-licenses"
           cp offline/php/test/smoke.php offline/php/test/smoke.expected "out/$name/"
           # the debug build keeps its symbols, for the crash handler's traces
@@ -319,6 +328,93 @@ jobs:
         run: |
           offline/php/zig-out/bin/php-embed-smoke.exe offline/php/test/smoke.php | tee native.out
           diff --strip-trailing-cr offline/php/test/smoke.expected native.out
+
+  # The wiki service: the image built from the Dockerfile, then tested through
+  # its API by tests/server/check.sh: a fresh install, a restart (the data
+  # persists and nothing is installed again), and read-only mode. The image is
+  # built to be tested, not published. Without a committed Composer lock it
+  # resolves one, uploads it as the composer-lock artifact, and fails.
+  server:
+    name: Server
+    needs: changes
+    if: needs.changes.outputs.ci == 'true' && needs.changes.outputs.scope == 'full'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      ADMIN_USER: Admin
+      ADMIN_PASSWORD: ci-only-password-1234
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the image
+        id: build
+        run: |
+          if [ -f composer/composer.lock ]; then
+            docker compose build
+            echo "lock=committed" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::composer/composer.lock is not committed; resolving one"
+            docker compose build --build-arg COMPOSER_UPDATE=1
+            docker run --rm --entrypoint cat sqlite-knowledge-wiki:latest /var/www/html/composer.lock > composer.lock
+            echo "lock=new" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/upload-artifact@v7
+        if: steps.build.outputs.lock == 'new'
+        with:
+          name: composer-lock
+          path: composer.lock
+          if-no-files-found: error
+
+      - name: Configure
+        run: |
+          sed -e 's|^MW_SERVER=.*|MW_SERVER=http://localhost:8080|' .env.example > .env
+          printf '%s' "$ADMIN_PASSWORD" > admin-password.txt
+          cat > "$RUNNER_TEMP/healthy.sh" << 'SH'
+          for i in $(seq 1 180); do
+            s=$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q wiki)" 2> /dev/null || true)
+            [ "$s" = healthy ] && exit 0
+            sleep 5
+          done
+          echo "::error::the wiki did not become healthy"
+          docker compose logs
+          exit 1
+          SH
+
+      - name: A fresh install, edits and queries
+        run: |
+          docker compose up -d
+          bash "$RUNNER_TEMP/healthy.sh"
+          docker compose logs wiki | grep -F "[wiki] First-run setup complete"
+          bash tests/server/check.sh write
+
+      - name: After a restart, the data is there and nothing is installed again
+        run: |
+          docker compose down
+          docker compose up -d
+          bash "$RUNNER_TEMP/healthy.sh"
+          if docker compose logs wiki | grep -F "[wiki] No database"; then
+            echo "::error::the wiki was installed again"
+            exit 1
+          fi
+          bash tests/server/check.sh read
+
+      - name: Read-only mode
+        run: |
+          echo "MW_READ_ONLY=Read-only snapshot" >> .env
+          docker compose up -d
+          bash "$RUNNER_TEMP/healthy.sh"
+          bash tests/server/check.sh read-only
+
+      - name: The logs
+        if: always()
+        run: docker compose logs --no-color | tail -200
+
+      - name: A lock must be committed
+        if: steps.build.outputs.lock == 'new'
+        run: |
+          echo "::error::commit the composer-lock artifact of this run as composer/composer.lock"
+          exit 1
 
   # Azure Artifact Signing, through the Entra identity whose federated
   # credential trusts this repository's main (and a branch while a signing
@@ -444,10 +540,13 @@ jobs:
           win="$name-php-runtime-test-windows-x86_64"
           mkdir dist
 
+          [ -f "out/$win/sbom.cdx.json" ] || { echo "::error::no SBOM: composer/composer.lock is not committed (see the Server job)"; exit 1; }
+
           # what deploying the wiki service needs, and nothing else
           mkdir "out/$name-server"
           cp Dockerfile docker-entrypoint.sh LocalSettings.php docker-compose.yml \
-            .env.example README.md LICENSE "out/$name-server/"
+            .env.example .dockerignore README.md LICENSE "out/$name-server/"
+          cp -r composer "out/$name-server/"
           cp "out/$win/sbom.cdx.json" "out/$name-server/"
 
           (cd out && zip -q -r -X "../dist/$name-server.zip" "$name-server")
@@ -478,7 +577,7 @@ jobs:
     # the one check main's ruleset requires: passes when every job passed or
     # was skipped for a change that needs none
     if: always()
-    needs: [changes, version, lint, compile, test, build-windows, sign-windows, package]
+    needs: [changes, version, lint, compile, test, build-windows, server, sign-windows, package]
     runs-on: ubuntu-24.04
     steps:
       - name: Check the jobs
@@ -491,11 +590,12 @@ jobs:
 
   release:
     name: Release v${{ needs.version.outputs.version }}
-    needs: [version, lint, test, build-windows, package]
+    needs: [version, lint, test, build-windows, server, package]
     if: >-
       ${{ !cancelled() && needs.version.outputs.release == 'true'
       && needs.lint.result == 'success' && needs.test.result == 'success'
-      && needs.build-windows.result == 'success' && needs.package.result == 'success' }}
+      && needs.build-windows.result == 'success' && needs.server.result == 'success'
+      && needs.package.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

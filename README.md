@@ -14,7 +14,14 @@ A containerized team wiki: **MediaWiki 1.43 LTS + Semantic MediaWiki 7.4 + Wikib
 cp .env.example .env
 ```
 
-Edit `.env`: set `MW_SERVER` to the public URL and `MW_ADMIN_PASSWORD` to a password of at least 10 characters. Then:
+Edit `.env`: set `MW_SERVER` to the public URL. Put the admin password (at least 10 characters) in `admin-password.txt` next to `docker-compose.yml`:
+
+```bash
+printf '%s' 'your password' > admin-password.txt
+chmod 600 admin-password.txt
+```
+
+Compose mounts it into the `wiki` container as a secret, read on the first run only, so the password is not left in the containers' environment. After the first run you can empty the file, but keep it: compose expects it to exist. Then:
 
 ```bash
 docker compose up --build -d
@@ -60,8 +67,8 @@ Set `MW_TRUSTED_PROXIES` to the address the proxy connects from (as seen inside 
 | `MW_LOGO`, `MW_LOGO_ICON` | placeholder | Logo URLs |
 | `MW_TRUSTED_PROXIES` | *(empty)* | Proxy IPs/CIDRs trusted for `X-Forwarded-For` |
 | `MW_ADMIN_USER` | `Admin` | First run only: admin account name |
-| `MW_ADMIN_PASSWORD` | *(required on first run)* | First run only; min. 10 characters |
-| `MW_ADMIN_PASSWORD_FILE` | | Alternative: path to a file holding the password |
+| `MW_ADMIN_PASSWORD_SECRET` | `./admin-password.txt` | First run only: the file with the admin password (min. 10 characters), mounted as a secret |
+| `MW_ADMIN_PASSWORD` | | Deprecated alternative: the password itself, left in the environment; warns on every later start |
 | `MW_DB_NAME` | `wiki` | Database is `<MW_DATA_DIR>/<MW_DB_NAME>.sqlite` |
 | `MW_DATA_DIR` | `/var/www/data` | Data directory in the container (must match the volume mount) |
 | `MW_SECRET_KEY` | auto | If unset, generated once and kept in `<MW_DATA_DIR>/secret.key` |
@@ -82,7 +89,6 @@ Set `MW_TRUSTED_PROXIES` to the address the proxy connects from (as seen inside 
 | `MW_AUTO_UPDATE` | `true` | Run `update.php --quick` on every start |
 | `MW_DEBUG` | `false` | Show exception details (not for production) |
 | `WIKI_BIND` | `127.0.0.1:8080` | Host address the wiki is published on (compose only) |
-| `MEDIAWIKI_IMAGE`, `SMW_VERSION`, `WIKIBASE_BRANCH` | `mediawiki:1.43`, `~7.4`, `REL1_43` | Build arguments |
 
 The Math extension is on by default and renders formulas to MathML inside PHP (`native` mode); it needs no rendering service. The image's PHP already has the multibyte regular-expression support it uses.
 
@@ -140,17 +146,22 @@ docker compose exec -u www-data wiki sqlite3 /var/www/data/wiki.sqlite "PRAGMA i
 
 ## Upgrading
 
+Every input of the image is pinned, so a rebuild gives the same wiki until a pin changes: the MediaWiki and Composer images by digest and Wikibase by commit (in the `Dockerfile`), and the Composer packages, Semantic MediaWiki among them, by `composer/composer.lock`. To upgrade:
+
 1. Take a backup.
-2. Rebuild. For patch releases of the same MediaWiki line:
+2. Change the pins in the `Dockerfile`: `MEDIAWIKI_IMAGE` to the new tag and its digest (`docker buildx imagetools inspect mediawiki:1.43.13` shows it), and `WIKIBASE_COMMIT` to the head of the matching `WIKIBASE_BRANCH` (`git ls-remote https://gerrit.wikimedia.org/r/mediawiki/extensions/Wikibase refs/heads/REL1_43`). For a new MediaWiki release line, also the branch (Wikibase's branches follow MediaWiki's) and, in `composer/composer.local.json`, a Semantic MediaWiki version that supports it.
+3. Resolve the Composer packages again and keep the new lock:
 
    ```bash
-   docker compose build --pull --no-cache
+   docker compose build --build-arg COMPOSER_UPDATE=1
+   docker run --rm --entrypoint cat sqlite-knowledge-wiki:latest /var/www/html/composer.lock > composer/composer.lock
    ```
 
-   For a new MediaWiki release line, set `MEDIAWIKI_IMAGE` and a matching `WIKIBASE_BRANCH` (Wikibase branches track MediaWiki releases, e.g. `REL1_43`), and an `SMW_VERSION` that supports it.
-3. Recreate the containers:
+   CI does the same when the lock is missing, and offers the result as the `composer-lock` artifact of the run.
+4. Rebuild and recreate the containers:
 
    ```bash
+   docker compose build
    docker compose up -d
    ```
 

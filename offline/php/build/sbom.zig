@@ -3,14 +3,15 @@ const std = @import("std");
 const components = @import("../components.zig");
 const manifest = @import("../build.zig.zon");
 
-/// The software bill of materials in CycloneDX 1.5 JSON. Where each fetched
+/// The software bill of materials in CycloneDX 1.5 JSON, without the wiki
+/// service's components, which tools/sbom_wiki.zig adds. Where each fetched
 /// component comes from and its package hash are read from build.zig.zon
 /// itself, so the SBOM cannot disagree with what is built; a dependency with
 /// no entry in components.zig is a compile error. There is no timestamp or
 /// serial number: the same sources give the same file.
 pub fn sbom(b: *std.Build) ![]const u8 {
     comptime {
-        for (std.meta.fieldNames(@TypeOf(manifest.dependencies))) |dependency| {
+        for (@typeInfo(@TypeOf(manifest.dependencies)).@"struct".field_names) |dependency| {
             var found = false;
             for (components.fetched) |c| {
                 if (std.mem.eql(u8, c.dependency.?, dependency)) found = true;
@@ -44,7 +45,6 @@ pub fn sbom(b: *std.Build) ![]const u8 {
         try appendComponent(b, &out, &first, c, "fetched and built by offline/php/build.zig", dep.url, dep.hash);
     }
     for (components.bundled_in_php) |c| try appendComponent(b, &out, &first, c, "bundled in the PHP release", null, null);
-    for (components.wiki) |c| try appendComponent(b, &out, &first, c, "fetched by the container build", null, null);
     try out.appendSlice(arena, "\n  ]\n}\n");
     return out.items;
 }
@@ -59,7 +59,7 @@ fn appendComponent(
     zig_hash: ?[]const u8,
 ) !void {
     const arena = b.allocator;
-    try if (!first.*) out.appendSlice(arena, ",\n");
+    if (!first.*) try out.appendSlice(arena, ",\n");
     first.* = false;
     // An SPDX identifier goes in "id"; anything else has to be a "name".
     const license_key = if (std.mem.startsWith(u8, c.license, "LicenseRef-")) "name" else "id";
@@ -80,8 +80,8 @@ fn appendComponent(
     }
     try out.appendSlice(arena, b.fmt(",\n      \"properties\": [\n        {{ \"name\": \"origin\", \"value\": {s} }}", .{try json(b, origin)}));
     if (zig_hash) |h| try out.appendSlice(arena, b.fmt(",\n        {{ \"name\": \"zig-package-hash\", \"value\": {s} }}", .{try json(b, h)}));
-    try if (c.source.len != 0) out.appendSlice(arena, b.fmt(",\n        {{ \"name\": \"source\", \"value\": {s} }}", .{try json(b, c.source)}));
-    try if (c.source_note.len != 0) out.appendSlice(arena, b.fmt(",\n        {{ \"name\": \"source-note\", \"value\": {s} }}", .{try json(b, c.source_note)}));
+    if (c.source.len != 0) try out.appendSlice(arena, b.fmt(",\n        {{ \"name\": \"source\", \"value\": {s} }}", .{try json(b, c.source)}));
+    if (c.source_note.len != 0) try out.appendSlice(arena, b.fmt(",\n        {{ \"name\": \"source-note\", \"value\": {s} }}", .{try json(b, c.source_note)}));
     try out.appendSlice(arena, "\n      ]\n    }");
 }
 
@@ -91,7 +91,7 @@ fn json(b: *std.Build, text: []const u8) ![]const u8 {
     var out: std.ArrayList(u8) = .empty;
     try out.append(b.allocator, '"');
     for (text) |ch| {
-        try if (ch == '"' or ch == '\\') out.append(b.allocator, '\\');
+        if (ch == '"' or ch == '\\') try out.append(b.allocator, '\\');
         try out.append(b.allocator, ch);
     }
     try out.append(b.allocator, '"');

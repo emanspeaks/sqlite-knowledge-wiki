@@ -1,7 +1,10 @@
-//! What the SBOM says about each third-party component, beyond what
+//! What the SBOM says about each third-party component of the offline
+//! viewer, beyond what
 //! build.zig.zon already holds (where it is fetched from and its content
 //! hash). `zig build sbom` fails if a dependency in build.zig.zon has no
-//! entry here, so a new dependency cannot be added without one.
+//! entry here, so a new dependency cannot be added without one. The wiki
+//! service's components come from the Dockerfile and composer/composer.lock
+//! (tools/sbom_wiki.zig).
 //!
 //! Licenses are SPDX identifiers. `sha256` is the published checksum of the
 //! release archive, checked when the version was pinned; empty where the
@@ -54,13 +57,4 @@ pub const bundled_in_php = [_]Component{
     .{ .name = "libbcmath", .version = "PHP fork of 0.2", .license = "LGPL-2.1-or-later", .supplier = "Free Software Foundation", .purpose = "Arbitrary precision arithmetic: PHP bcmath extension", .source = "PHP release, ext/bcmath/libbcmath" },
     .{ .name = "xxHash", .version = "0.8.1", .license = "BSD-2-Clause", .supplier = "Yann Collet", .purpose = "Hash functions: PHP hash extension", .source = "PHP release, ext/hash/xxhash" },
     .{ .name = "Boost.Context (fcontext assembly)", .version = "as bundled", .license = "BSL-1.0", .supplier = "Oliver Kowalke", .purpose = "Fiber context switching", .source = "PHP release, Zend/asm" },
-};
-
-/// The wiki software. The container build fetches these (see Dockerfile);
-/// the offline viewer will carry the same tree. The versions are the build
-/// arguments' defaults; the exact versions are fixed when an image is built.
-pub const wiki = [_]Component{
-    .{ .name = "MediaWiki", .version = "1.43 (LTS series)", .license = "GPL-2.0-or-later", .supplier = "Wikimedia Foundation and contributors", .purpose = "The wiki", .source = "Docker Hub official image mediawiki:1.43, which also carries its bundled extensions and PHP libraries" },
-    .{ .name = "Semantic MediaWiki", .version = "~7.4", .license = "GPL-2.0-or-later", .supplier = "Semantic MediaWiki project", .purpose = "Semantic properties and queries", .source = "Packagist, mediawiki/semantic-media-wiki, with its Composer dependencies" },
-    .{ .name = "Wikibase", .version = "REL1_43 branch", .license = "GPL-2.0-or-later", .supplier = "Wikimedia Deutschland", .purpose = "Structured data repository and client", .source = "https://gerrit.wikimedia.org/r/mediawiki/extensions/Wikibase, with its git submodules and Composer dependencies" },
 };

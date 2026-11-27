@@ -32,6 +32,10 @@ The wiki stands on two release lines with end dates; plan the move to the next b
 
 The container's PHP comes with the MediaWiki image; the offline viewer's PHP is pinned in `offline/php/build.zig.zon`. Both move together, and with them Semantic MediaWiki, Wikibase (whose branch follows MediaWiki's) and ICU.
 
+## Pins of the wiki service's image
+
+The `Dockerfile` pins the MediaWiki and Composer images by digest and Wikibase by commit; `composer/composer.lock` pins every Composer package. `zig build sbom` reads all of them, so the SBOM follows a change of pin without an edit. README, "Upgrading", has the steps; CI's Server job fails while the lock is missing, and offers a freshly resolved one as an artifact.
+
 ## Hand-maintained parts of the offline PHP build
 
 `offline/php` builds PHP and its libraries from pinned official releases. Most of it follows the releases automatically; the parts below are kept by hand and are what to check when a version changes.

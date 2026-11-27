@@ -129,13 +129,17 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 
 %requirement[SRS-089 interface verification=demonstration derives=SYS-003,SYS-007] A release shall be published from GitHub Actions with two separate packages: a zip of only the files needed to deploy the wiki service, and the Windows executable. The container image itself shall not be built or published by the release.
 
-%requirement[SRS-090 constraint verification=inspection derives=SYS-018] Each release shall include a software bill of materials naming every third-party component, its version, license and source. It shall be generated from the build's own dependency manifest.
+%requirement[SRS-090 constraint verification=inspection derives=SYS-018] Each release shall include a software bill of materials naming every third-party component, its version, license and source: those of the offline viewer, generated from its build's dependency manifest, and those of the wiki service, generated from the pins in the `Dockerfile` and from the Composer lock.
 
 %requirement[SRS-091 constraint verification=inspection derives=SYS-021] The project's own code shall be under the MIT license.
 
 %requirement[SRS-092 constraint verification=inspection derives=SYS-018] A release shall carry SHA-256 checksums of its files and a detached GPG signature of the checksum file, verifiable with a public key kept in the repository.
 
 %requirement[SRS-093 constraint verification=inspection derives=SYS-021] The project's license shall be a release artifact, and the package of the offline viewer shall contain the license text of every third-party component in it.
+
+%requirement[SRS-094 constraint verification=inspection derives=SYS-018] Every input of the wiki service's image shall be pinned: the base images by digest, Wikibase by commit, and the Composer packages by a committed `composer/composer.lock`, which the image installs. The image shall not build without the lock unless asked to resolve a new one.
+
+%requirement[SRS-095 functional verification=test derives=SYS-003] The admin password shall reach the first-run install from a file mounted as a secret, and shall not be in the environment of either container. A password set in the environment shall still work, with a warning on every later start.
 
 %requirement[SRS-085 constraint verification=inspection derives=SYS-021] Requirements shall be kept as Skein items in this repository and `skein check` shall report no problems.
 

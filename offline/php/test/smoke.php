@@ -1,4 +1,8 @@
 <?php
+// verifies: SRS-027 (Lua runs in-process, without an external program)
+// verifies: SRS-029 (thumbnails with PHP's own image library)
+// verifies: SRS-031 (Lua's CPU-time limit on Windows)
+// verifies: SRS-087 (fibers, switched by PHP's own routines)
 // Each line of output is one check; test/smoke.expected holds the right answers.
 error_reporting(E_ALL & ~E_DEPRECATED);
 ini_set('display_errors', '1');

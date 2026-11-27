@@ -11,3 +11,4 @@ zig-pkg/
 .local-gitignore
 .claude/
 /CLAUDE.local.md
+admin-password.txt

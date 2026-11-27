@@ -16,7 +16,12 @@ npx --yes markdownlint-cli2@0.24.2 "**/*.md" 2>&1 | tail -1
 "$K" check
 if [ "${1:-}" != --quick ]; then
   # -j6: Windows runs out of process handles spawning clang for every core
-  (cd offline/php && "$Z" build -j6 --summary none && "$Z" build sbom licenses -j6)
+  (cd offline/php && "$Z" build -j6 --summary none && "$Z" build licenses -j6)
+  if [ -f composer/composer.lock ]; then
+    (cd offline/php && "$Z" build sbom -j6)
+  else
+    echo "check.sh: composer/composer.lock is not committed; no SBOM (CI's Server job writes one)"
+  fi
   out=$(mktemp)
   offline/php/zig-out/bin/php-embed-smoke.exe offline/php/test/smoke.php > "$out"
   diff --strip-trailing-cr offline/php/test/smoke.expected "$out"

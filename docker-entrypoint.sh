@@ -63,8 +63,8 @@ install_wiki() {
     if [ -z "$password" ] && [ -n "${MW_ADMIN_PASSWORD_FILE:-}" ]; then
         password="$(cat "$MW_ADMIN_PASSWORD_FILE")"
     fi
-    [ -n "$password" ] || die "First run: set MW_ADMIN_PASSWORD (or MW_ADMIN_PASSWORD_FILE)."
-    [ "${#password}" -ge 10 ] || die "First run: MW_ADMIN_PASSWORD must be at least 10 characters."
+    [ -n "$password" ] || die "First run: put the admin password in the secret file (admin-password.txt), or set MW_ADMIN_PASSWORD."
+    [ "${#password}" -ge 10 ] || die "First run: the admin password must be at least 10 characters."
 
     log "No database at $DB_FILE: installing MediaWiki"
     local tmp
@@ -127,6 +127,9 @@ init_wiki() {
     fix_ownership
     ensure_secret
 
+    if [ -f "$DB_FILE" ] && [ -n "${MW_ADMIN_PASSWORD:-}" ]; then
+        log "WARNING: MW_ADMIN_PASSWORD is read on the first run only; remove it from .env so it does not stay in the containers' environment"
+    fi
     if [ ! -f "$DB_FILE" ]; then
         install_wiki
         update_wiki

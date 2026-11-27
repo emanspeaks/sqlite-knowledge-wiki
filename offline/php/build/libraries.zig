@@ -24,7 +24,7 @@ pub const Library = struct {
 /// Flags for third-party C: no warnings, and no UBSan in Debug builds.
 pub const library_flags = [_][]const u8{ "-w", "-fno-sanitize=undefined" };
 
-pub fn zlib(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.OptimizeMode) Library {
+pub fn zlib(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.Optimize) Library {
     const dep = b.dependency("zlib", .{});
     const m = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
     m.addCSourceFiles(.{
@@ -41,7 +41,7 @@ pub fn zlib(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.
     };
 }
 
-pub fn sqlite(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.OptimizeMode) Library {
+pub fn sqlite(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.Optimize) Library {
     const dep = b.dependency("sqlite", .{});
     const m = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
     m.addCSourceFile(.{
@@ -69,7 +69,7 @@ pub fn sqlite(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lan
 /// ICU's common, i18n and io libraries with ICU's data built in, as one static
 /// library. The data is the prebuilt archive the ICU release ships
 /// (source/data/in/icudt79l.dat), placed in the program by the assembler.
-pub fn icu(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.OptimizeMode) Library {
+pub fn icu(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.Optimize) Library {
     const dep = b.dependency("icu", .{});
     const flags = [_][]const u8{
         "-w",
@@ -125,7 +125,7 @@ pub fn icu(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.O
 pub fn libpng(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    optimize: std.lang.OptimizeMode,
+    optimize: std.lang.Optimize,
     z: Library,
 ) Library {
     const dep = b.dependency("libpng", .{});
@@ -149,7 +149,7 @@ pub fn libpng(
 }
 
 /// The Independent JPEG Group's libjpeg.
-pub fn jpeg(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.OptimizeMode) Library {
+pub fn jpeg(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.Optimize) Library {
     const dep = b.dependency("jpeg", .{});
     // jconfig.vc is the configuration libjpeg ships for Windows compilers.
     const generated = b.addWriteFiles();
@@ -174,7 +174,7 @@ pub fn jpeg(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.
 
 /// win-iconv: the iconv interface on top of Windows' own conversion
 /// functions. Public domain. It replaces GNU libiconv, which is LGPL.
-pub fn winIconv(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.OptimizeMode) Library {
+pub fn winIconv(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.Optimize) Library {
     const dep = b.dependency("win_iconv", .{});
     const m = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
     m.addIncludePath(dep.path(""));
@@ -187,7 +187,7 @@ pub fn winIconv(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.l
 
 /// Oniguruma: the regular expression engine behind mbstring's mb_ereg
 /// functions, which the Math extension uses. BSD license.
-pub fn oniguruma(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.OptimizeMode) Library {
+pub fn oniguruma(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.Optimize) Library {
     const dep = b.dependency("oniguruma", .{});
     // config.h.win64 is the configuration Oniguruma ships for 64-bit Windows.
     const generated = b.addWriteFiles();
@@ -216,7 +216,7 @@ pub fn oniguruma(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.
 
 /// Lua 5.1, the version Scribunto's modules are written for: the core and
 /// the standard libraries, without the interpreter and compiler programs.
-pub fn lua(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.OptimizeMode) Library {
+pub fn lua(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.Optimize) Library {
     const dep = b.dependency("lua", .{});
     const m = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
     m.addCSourceFiles(.{
@@ -239,7 +239,7 @@ pub fn lua(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.O
 /// reach outside the process (HTTP, loadable modules, system catalogs) or need other libraries
 /// (iconv, ICU, zlib). Encodings beyond the built-in ones are not available
 /// to the XML parser; UTF-8, UTF-16, ISO-8859-x and ASCII are built in.
-pub fn libxml2(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.OptimizeMode) Library {
+pub fn libxml2(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.lang.Optimize) Library {
     const dep = b.dependency("libxml2", .{});
     const version = b.addConfigHeader(.{
         .style = .{ .autoconf_at = dep.path("include/libxml/xmlversion.h.in") },
