@@ -27,12 +27,10 @@
       "ci-only.txt": "gitignore",
       "docs-only.txt": "gitignore",
       ".clangd": "yaml",
-      // PHP's own headers and the fragment build.zig includes
-      "*.inc": "c",
     },
     "files.insertFinalNewline": true,
     "terminal.integrated.automationProfile.windows": {
-      "path": "C:\windows\system32\cmd.exe",
+      "path": "C:\\windows\\system32\\cmd.exe",
     },
     "ltex.additionalRules.motherTongue": "en-US",
     // Zig 0.17.1, the version in .zigversion (not committed), which the Zig

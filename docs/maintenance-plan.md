@@ -21,6 +21,17 @@ Software assurance in maintenance, and the risk assessment of every change.
 
 Upgrade intervals and their tracking; the equipment and labs to verify changes; how modified software is tested before use, delivered and installed; licensing; operational backups.
 
+## Support windows of the platform
+
+The wiki stands on two release lines with end dates; plan the move to the next before them.
+
+| Component | Line | Security fixes until |
+| --- | --- | --- |
+| MediaWiki | 1.43 (LTS) | December 2027 |
+| PHP | 8.3 | 31 December 2027 |
+
+The container's PHP comes with the MediaWiki image; the offline viewer's PHP is pinned in `offline/php/build.zig.zon`. Both move together, and with them Semantic MediaWiki, Wikibase (whose branch follows MediaWiki's) and ICU.
+
 ## Hand-maintained parts of the offline PHP build
 
 `offline/php` builds PHP and its libraries from pinned official releases. Most of it follows the releases automatically; the parts below are kept by hand and are what to check when a version changes.

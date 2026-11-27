@@ -227,6 +227,8 @@ jobs:
         with:
           path: offline/php/zig-pkg
           key: zig-pkg-${{ hashFiles('offline/php/build.zig.zon') }}
+          # shared with build-windows, which restores it
+          enableCrossOsArchive: true
 
       - uses: randyos-org/setup-zig@node24  # v2.2.1 on Node.js 24, until upstream releases it
         with:
