@@ -89,11 +89,21 @@ pub fn build(b: *std.Build) void {
         .flags = &(php_flags ++ [_][]const u8{"-DHAVE_CONFIG_H"}),
     });
     php.addCSourceFile(.{ .file = b.path("compat/internal_functions.c"), .flags = &php_flags });
-    // Fibers: PHP ships these two routines for Windows only in Microsoft
-    // assembler syntax; these are the same routines from Boost.Context in the
-    // syntax clang assembles.
-    php.addAssemblyFile(b.path("asm/jump_x86_64_ms_pe_clang_gas.S"));
-    php.addAssemblyFile(b.path("asm/make_x86_64_ms_pe_clang_gas.S"));
+    // Fibers: PHP ships its context-switch routines for Windows only in
+    // Microsoft assembler syntax. masm2gas rewrites the directives around the
+    // instructions so that clang assembles PHP's own files.
+    const masm2gas_mod = b.createModule(.{
+        .target = b.resolveTargetQuery(.{}),
+        .optimize = .ReleaseSafe,
+        .link_libc = true,
+    });
+    masm2gas_mod.addCSourceFile(.{ .file = b.path("tools/masm2gas.c") });
+    const masm2gas = b.addExecutable(.{ .name = "masm2gas", .root_module = masm2gas_mod });
+    for ([_][]const u8{ "jump", "make" }) |routine| {
+        const convert = b.addRunArtifact(masm2gas);
+        convert.addFileArg(src.path(b, b.fmt("Zend/asm/{s}_x86_64_ms_pe_masm.asm", .{routine})));
+        php.addAssemblyFile(convert.addOutputFileArg(b.fmt("{s}_fcontext.S", .{routine})));
+    }
     for (system_libs) |name| php.linkSystemLibrary(name, .{});
 
     const lib = b.addLibrary(.{ .name = "php", .linkage = .static, .root_module = php });

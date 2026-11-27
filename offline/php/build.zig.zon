@@ -16,7 +16,6 @@
         "build.zig",
         "build.zig.zon",
         "sources.zig",
-        "asm",
         "compat",
         "patches",
         "test",

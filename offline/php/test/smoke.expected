@@ -1,0 +1,15 @@
+version 8.3.37 Windows embed 64-bit
+json {"a":1,"b":[true,null,1.5]}
+pcre aXc 1
+hash 741efa31 8cdc1683 eaf06c64
+date 1971-01-01T00:00:00 2026-12-27
+spl 3,1,2 0
+random 16 43
+serialize a:1:{s:1:"k";d:1;}
+sprintf 003.1|ff|é--
+fiber basic 11 42 done:7 true
+fiber nested 1000 501500
+fiber exception ready rethrown:boom
+fiber many 14900
+generator 1 42
+end

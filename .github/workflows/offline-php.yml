@@ -29,17 +29,24 @@ jobs:
     name: Build and run on Windows
     runs-on: windows-latest
     needs: cross-build
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
-      - run: pip install ziglang==$env:ZIG_VERSION
-      - name: zig build
-        working-directory: offline/php
-        run: python -m ziglang build -Doptimize=ReleaseFast --summary all
-      - name: Run the natively built program
-        run: offline\php\zig-out\bin\php-embed-smoke.exe
       - uses: actions/download-artifact@v4
         with:
           name: php-embed-smoke-cross
           path: cross
-      - name: Run the program cross-compiled on Linux
-        run: cross\php-embed-smoke.exe
+      - name: Test the program cross-compiled on Linux
+        run: |
+          cross/php-embed-smoke.exe offline/php/test/smoke.php | tee cross.out
+          diff --strip-trailing-cr offline/php/test/smoke.expected cross.out
+      - run: pip install ziglang==$ZIG_VERSION
+      - name: zig build
+        working-directory: offline/php
+        run: python -m ziglang build -Doptimize=ReleaseFast --summary all
+      - name: Test the natively built program
+        run: |
+          offline/php/zig-out/bin/php-embed-smoke.exe offline/php/test/smoke.php | tee native.out
+          diff --strip-trailing-cr offline/php/test/smoke.expected native.out
