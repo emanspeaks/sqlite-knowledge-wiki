@@ -22,15 +22,23 @@ read_only = true
 order = ["D", "P", "B", "U", "F"]
 # milestone = "pdr"
 
-# Tests cite the software requirements they verify, and code the design it implements,
-# in comments: `// verifies: SRS-001`, `// implements: DES-001`. Give the places and
-# file names, and remove the #s:
-# [[citations]]
-# name = "test"
-# path = "tests"
-# files = [".c"]
-# marker = "// verifies:"
-# to = ["requirement"]
+# Tests cite the software requirements they verify, in comments: `// verifies: SRS-001`
+# in the offline PHP's test script, `# verifies: SRS-001` in the wiki service's.
+[[citations]]
+name = "offline-test"
+path = "offline/php/test"
+files = [".php"]
+marker = "// verifies:"
+to = ["requirement"]
+
+[[citations]]
+name = "server-test"
+path = "tests/server"
+files = [".sh"]
+marker = "# verifies:"
+to = ["requirement"]
+
+# Code cites the design it implements, `// implements: DES-001`, once there is a design:
 #
 # [[citations]]
 # name = "code"

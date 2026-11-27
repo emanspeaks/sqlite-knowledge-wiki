@@ -12,3 +12,5 @@
 offline/vfs/*
 # the public key the release job checks its GPG signature against
 SIGNING-KEY.asc
+# the wiki service's API tests, run by the Server job
+tests/*

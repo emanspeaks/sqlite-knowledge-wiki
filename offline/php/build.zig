@@ -6,7 +6,7 @@
 //! copied into the build cache and patches/ is applied to the copy.
 //!
 //!   zig build            static library and the smoke-test program
-//!   zig build -Doptimize=ReleaseFast
+//!   zig build -Doptimize=fast
 const std = @import("std");
 const sources = @import("sources.zig");
 const components = @import("components.zig");
@@ -81,15 +81,15 @@ pub fn build(b: *std.Build) !void {
     // The pristine release, copied into the cache with the patches applied.
     const prepare_mod = b.createModule(.{
         .target = b.resolveTargetQuery(.{}),
-        .optimize = .ReleaseSafe,
+        .optimize = .safe,
         .link_libc = true,
     });
     prepare_mod.addCSourceFile(.{ .file = b.path("tools/prepare_src.c") });
     const prepare = b.addRunArtifact(b.addExecutable(.{ .name = "prepare_src", .root_module = prepare_mod }));
-    prepare.addDirectoryArg(b.dependency("php", .{}).path(""));
-    const src = prepare.addOutputDirectoryArg("php-src");
-    prepare.addFileArg(b.path("patches/php-8.3-mingw.patch"));
-    prepare.addFileArg(b.path("patches/php-8.3-opcache-embed.patch"));
+    prepare.addDirectoryArg2(b.dependency("php", .{}).path(""), .{});
+    const src = prepare.addOutputDirectoryArg2("php-src", .{});
+    prepare.addFileArg2(b.path("patches/php-8.3-mingw.patch"), .{});
+    prepare.addFileArg2(b.path("patches/php-8.3-opcache-embed.patch"), .{});
 
     // One forwarding header per spelling. #include_next keeps this from
     // including itself where file names are case-insensitive.
@@ -186,15 +186,15 @@ pub fn build(b: *std.Build) !void {
     // instructions so that clang assembles PHP's own files.
     const masm2gas_mod = b.createModule(.{
         .target = b.resolveTargetQuery(.{}),
-        .optimize = .ReleaseSafe,
+        .optimize = .safe,
         .link_libc = true,
     });
     masm2gas_mod.addCSourceFile(.{ .file = b.path("tools/masm2gas.c") });
     const masm2gas = b.addExecutable(.{ .name = "masm2gas", .root_module = masm2gas_mod });
     for ([_][]const u8{ "jump", "make" }) |routine| {
         const convert = b.addRunArtifact(masm2gas);
-        convert.addFileArg(src.path(b, b.fmt("Zend/asm/{s}_x86_64_ms_pe_masm.asm", .{routine})));
-        php.addAssemblyFile(convert.addOutputFileArg(b.fmt("{s}_fcontext.S", .{routine})));
+        convert.addFileArg2(src.path(b, b.fmt("Zend/asm/{s}_x86_64_ms_pe_masm.asm", .{routine})), .{});
+        php.addAssemblyFile(convert.addOutputFileArg2(b.fmt("{s}_fcontext.S", .{routine}), .{}));
     }
     for (system_libs) |name| php.linkSystemLibrary(name, .{});
 
@@ -277,8 +277,20 @@ pub fn build(b: *std.Build) !void {
     ), "licenses/SQLite.txt").step);
 
     // `zig build sbom`: the software bill of materials, zig-out/sbom.cdx.json.
+    // The offline viewer's components come from this build's manifest; the
+    // wiki service's from the Dockerfile and the Composer lock, which a build
+    // step reads so that a change to them is noticed.
     const sbom_files = b.addWriteFiles();
-    const sbom_file = sbom_files.add("sbom.cdx.json", try sbom(b));
+    const sbom_base = sbom_files.add("sbom-base.cdx.json", try sbom(b));
+    const sbom_wiki = b.addRunArtifact(b.addExecutable(.{ .name = "sbom_wiki", .root_module = b.createModule(.{
+        .root_source_file = b.path("tools/sbom_wiki.zig"),
+        .target = b.graph.host,
+        .optimize = .safe,
+    }) }));
+    sbom_wiki.addFileArg2(sbom_base, .{});
+    sbom_wiki.addFileArg2(b.path("../../Dockerfile"), .{});
+    sbom_wiki.addFileArg2(b.path("../../composer/composer.lock"), .{});
+    const sbom_file = sbom_wiki.addOutputFileArg2("sbom.cdx.json", .{});
     const sbom_step = b.step("sbom", "Write the software bill of materials (CycloneDX JSON)");
     sbom_step.dependOn(&b.addInstallFile(sbom_file, "sbom.cdx.json").step);
 }

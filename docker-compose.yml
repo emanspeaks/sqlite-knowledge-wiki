@@ -11,15 +11,18 @@ x-wiki: &wiki
 services:
   wiki:
     <<: *wiki
+    # Every input of the image is pinned in the Dockerfile; there are no
+    # build arguments to set here.
     build:
       context: .
-      args:
-        MEDIAWIKI_IMAGE: ${MEDIAWIKI_IMAGE:-mediawiki:1.43}
-        SMW_VERSION: ${SMW_VERSION:-~7.4}
-        WIKIBASE_BRANCH: ${WIKIBASE_BRANCH:-REL1_43}
     environment:
       # Page views do not run jobs; the jobrunner service does.
       MW_JOB_RUN_RATE: ${MW_JOB_RUN_RATE:-0}
+      # The first run's admin password, from the secret below rather than
+      # the environment, where it would stay for the container's life
+      MW_ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+    secrets:
+      - admin_password
     ports:
       # Bound to loopback by default: put your reverse proxy in front of it.
       - "${WIKI_BIND:-127.0.0.1:8080}:80"
@@ -32,6 +35,12 @@ services:
         condition: service_healthy
     healthcheck:
       disable: true
+
+# Read on the first run only; afterwards the file may be emptied, but it must
+# exist (README, "Quick start").
+secrets:
+  admin_password:
+    file: ${MW_ADMIN_PASSWORD_SECRET:-./admin-password.txt}
 
 volumes:
   wiki-data:
