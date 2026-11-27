@@ -208,7 +208,7 @@ if ( $wgEnableEmail && wikiEnv( 'MW_SMTP_HOST' ) !== null ) {
 // Bundled extensions. Names are directory names under extensions/.
 foreach ( wikiEnvList( 'MW_EXTENSIONS',
 	'Cite,ParserFunctions,WikiEditor,CodeEditor,SyntaxHighlight_GeSHi,VisualEditor,'
-	. 'TemplateData,CategoryTree,Interwiki,Nuke,ReplaceText,Scribunto'
+	. 'TemplateData,CategoryTree,Interwiki,Nuke,ReplaceText,Scribunto,Math'
 ) as $wikiExtension ) {
 	if ( in_array( $wikiExtension, [ 'SemanticMediaWiki', 'Wikibase' ], true ) ) {
 		continue; // controlled by MW_ENABLE_SMW / MW_ENABLE_WIKIBASE below
@@ -222,6 +222,11 @@ foreach ( wikiEnvList( 'MW_EXTENSIONS',
 	}
 }
 $wgPFEnableStringFunctions = true;
+// Math: render formulas to MathML in PHP itself. The other modes need an
+// external rendering service, which neither the server nor the offline
+// viewer has.
+$wgMathValidModes = [ 'native', 'source' ];
+$wgDefaultUserOptions['math'] = 'native';
 if ( extension_loaded( 'luasandbox' ) ) {
 	$wgScribuntoDefaultEngine = 'luasandbox';
 }

@@ -94,6 +94,8 @@ accept `1`/`true`/`yes`/`on`.
 | `WIKI_BIND` | `127.0.0.1:8080` | Host address the wiki is published on (compose only) |
 | `MEDIAWIKI_IMAGE`, `SMW_VERSION`, `WIKIBASE_BRANCH` | `mediawiki:1.43`, `~7.4`, `REL1_43` | Build arguments |
 
+The Math extension is on by default and renders formulas to MathML inside PHP (`native` mode); it needs no rendering service. The image's PHP already has the multibyte regular-expression support it uses.
+
 Settings that have no variable go in a PHP file mounted into
 `/etc/mediawiki/conf.d/`; every `*.php` there is loaded at the end of
 `LocalSettings.php`.
