@@ -24,7 +24,7 @@ dom Electron 2 world 2.15.4
 simplexml d f 2
 xml R,X,Y latin1
 xmlreader 12 xmlwriter <out k="v&amp;w">&lt;t&gt;</out>
-iconv e9 naive cafe 3 0041
+iconv e9 na"ive caf'e 3 0041
 gd 504e47 ffd8 16x12 red 64x48 image/png
 intl Äpfel,apple,zebra,Zürich 1,234,567.5 1.234.567,5 2 Moskva xn--bcher-kva.de vendredi 27 novembre 2026 79 locales
 opcache true true true 42 false

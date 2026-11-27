@@ -1,7 +1,9 @@
 #!/bin/sh
 # Regenerates smoke.expected from a Linux PHP 8.3, for the lines that do not
 # depend on how this build is configured. Lines that do are fixed up below;
-# check any change to them by reading the CI output.
+# check any change to them by reading the CI output. (GNU libiconv, unlike
+# the C library's iconv on Linux, transliterates an accented letter to the
+# accent followed by the letter.)
 set -eu
 cd "$(dirname "$0")"
 tmp=$(mktemp)
@@ -12,6 +14,7 @@ php "$tmp" | sed \
     -e '1s/.*/version 8.3.37 Windows embed 64-bit/' \
     -e 's/^extensions .*/extensions bcmath,calendar,core,ctype,date,dom,fileinfo,filter,gd,hash,iconv,intl,json,libxml,luasandbox,mbstring,pcre,pdo,pdo_sqlite,random,reflection,session,simplexml,spl,sqlite3,standard,tokenizer,xml,xmlreader,xmlwriter,zend opcache,zlib/' \
     -e 's/^pdo .*/pdo sqlite/' \
+    -e "s/^iconv e9 naive cafe /iconv e9 na\"ive caf'e /" \
     -e 's/^\(intl .*\) [0-9]* locales$/\1 79 locales/' \
     -e 's/^\(dom .*\) [0-9.]*$/\1 2.15.4/' \
     -e 's/^\(sqlite3 .*\) old$/\1 current/' > smoke.expected
