@@ -5,9 +5,14 @@
  * goes to PHP's own plain-files wrapper unchanged.
  *
  * How it hooks in:
- *  - each request it registers itself as the "file" wrapper, which is what
- *    stream_wrapper_register('file', ...) does from PHP, so fopen, include,
- *    stat, opendir and friends all arrive here;
+ *  - it swaps the operations table of PHP's plain-files wrapper, so fopen,
+ *    include, stat, opendir and friends all arrive here. The wrapper object
+ *    itself stays the same one, because PHP special-cases its address: a
+ *    stream that belongs to any other wrapper gets short reads from fread()
+ *    (one 8 KiB chunk per call), which breaks callers that expect a file;
+ *  - it wraps file_exists(), is_readable(), is_writable() and
+ *    is_executable(), which for the plain-files wrapper call access(2)
+ *    directly instead of asking the wrapper;
  *  - it replaces zend_resolve_path so include/require of a virtual path
  *    resolve without the real file system (and include_once sees one
  *    spelling per file);
@@ -61,6 +66,7 @@ ZEND_BEGIN_MODULE_GLOBALS(wikivfs)
 	char *pack;
 	char *root;
 	char *profile_log;
+	char *trace_log;
 ZEND_END_MODULE_GLOBALS(wikivfs)
 ZEND_DECLARE_MODULE_GLOBALS(wikivfs)
 #define WVG(v) ZEND_MODULE_GLOBALS_ACCESSOR(wikivfs, v)
@@ -73,6 +79,18 @@ static inline uint64_t wv_now(void)
 }
 #define WV_T0 uint64_t wv_t0 = wv_profiling ? wv_now() : 0
 #define WV_T1 do { if (wv_profiling) wv_prof.ns += wv_now() - wv_t0; } while (0)
+
+/* Debugging aid: one line per open (O), stat hit (S) and stat miss (s). */
+static void wv_trace(char what, const char *path)
+{
+	const char *log = WVG(trace_log);
+	if (!log || !*log) return;
+	FILE *f = fopen(log, "a");
+	if (f) {
+		fprintf(f, "%c %s\n", what, path);
+		fclose(f);
+	}
+}
 
 /* --- lookup ------------------------------------------------------------ */
 
@@ -272,8 +290,9 @@ static const php_stream_ops wv_dir_ops = {
 
 /* --- the wrapper ------------------------------------------------------- */
 
-#define WV_PLAIN (php_plain_files_wrapper.wops)
-#define WV_PLAIN_W ((php_stream_wrapper *)&php_plain_files_wrapper)
+static const php_stream_wrapper_ops *wv_plain_ops;
+#define WV_PLAIN wv_plain_ops
+#define WV_PLAIN_W wrapper
 
 static php_stream *wv_opener(php_stream_wrapper *wrapper, const char *path, const char *mode,
 	int options, zend_string **opened_path, php_stream_context *context STREAMS_DC)
@@ -286,6 +305,7 @@ static php_stream *wv_opener(php_stream_wrapper *wrapper, const char *path, cons
 	WV_T0;
 	php_stream *stream = NULL;
 	wv_prof.open++;
+	wv_trace('O', p);
 	if (mode[0] != 'r' || strchr(mode, '+')) {
 		errno = EROFS;
 	} else {
@@ -328,6 +348,7 @@ static int wv_url_stat(php_stream_wrapper *wrapper, const char *url, int flags,
 	WV_T0;
 	const wv_entry *e = wv_lookup(p, NULL);
 	wv_prof.stat++;
+	wv_trace(e ? 'S' : 's', p);
 	if (e) wv_fill_stat(e, ssb); else wv_prof.stat_miss++;
 	WV_T1;
 	return e ? 0 : -1;
@@ -396,8 +417,6 @@ static const php_stream_wrapper_ops wv_wrapper_ops = {
 	wv_unlink, wv_rename, wv_mkdir, wv_rmdir, wv_metadata
 };
 
-static php_stream_wrapper wv_wrapper = { &wv_wrapper_ops, NULL, 0 /* not a URL: may be included */ };
-
 /* --- path resolution --------------------------------------------------- */
 
 static zend_string *(*wv_orig_resolve_path)(zend_string *filename);
@@ -414,7 +433,6 @@ static zend_string *wv_resolve_file(const char *abs_path)
 static zend_string *wv_resolve_path(zend_string *filename)
 {
 	const char *name = ZSTR_VAL(filename);
-	if (!wv_base) return wv_orig_resolve_path(filename);
 
 	if (name[0] == '/') {
 		if (!wv_is_virtual(name)) return wv_orig_resolve_path(filename);
@@ -479,11 +497,48 @@ static PHP_FUNCTION(wikivfs_realpath)
 	wv_orig_realpath(INTERNAL_FUNCTION_PARAM_PASSTHRU);
 }
 
+/* file_exists() and the is_*able() checks call access(2) for plain files. */
+static zif_handler wv_orig_access[5];
+static const char *const wv_access_names[5] = { "file_exists", "is_readable", "is_writable", "is_writeable", "is_executable" };
+
+static void wv_access(INTERNAL_FUNCTION_PARAMETERS, int which)
+{
+	zend_string *path;
+	if (ZEND_NUM_ARGS() == 1 && Z_TYPE_P(ZEND_CALL_ARG(execute_data, 1)) == IS_STRING) {
+		path = Z_STR_P(ZEND_CALL_ARG(execute_data, 1));
+		const char *p = wv_strip_scheme(ZSTR_VAL(path));
+		if (wv_is_virtual(p) && strlen(ZSTR_VAL(path)) == ZSTR_LEN(path)) {
+			WV_T0;
+			const wv_entry *e = wv_lookup(p, NULL);
+			wv_prof.stat++;
+			if (!e) wv_prof.stat_miss++;
+			wv_trace(e ? 'A' : 'a', p);
+			WV_T1;
+			switch (which) {
+				case 0: case 1: RETURN_BOOL(e != NULL);
+				case 4: RETURN_BOOL(e != NULL && (e->flags & 1));
+				default: RETURN_FALSE; /* read-only */
+			}
+		}
+	}
+	wv_orig_access[which](INTERNAL_FUNCTION_PARAM_PASSTHRU);
+}
+static PHP_FUNCTION(wikivfs_file_exists) { wv_access(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0); }
+static PHP_FUNCTION(wikivfs_is_readable) { wv_access(INTERNAL_FUNCTION_PARAM_PASSTHRU, 1); }
+static PHP_FUNCTION(wikivfs_is_writable) { wv_access(INTERNAL_FUNCTION_PARAM_PASSTHRU, 2); }
+static PHP_FUNCTION(wikivfs_is_writeable) { wv_access(INTERNAL_FUNCTION_PARAM_PASSTHRU, 3); }
+static PHP_FUNCTION(wikivfs_is_executable) { wv_access(INTERNAL_FUNCTION_PARAM_PASSTHRU, 4); }
+static const zif_handler wv_access_handlers[5] = {
+	ZEND_FN(wikivfs_file_exists), ZEND_FN(wikivfs_is_readable), ZEND_FN(wikivfs_is_writable),
+	ZEND_FN(wikivfs_is_writeable), ZEND_FN(wikivfs_is_executable),
+};
+
 /* --- module ------------------------------------------------------------ */
 
 PHP_INI_BEGIN()
 	STD_PHP_INI_ENTRY("wikivfs.pack", "", PHP_INI_SYSTEM, OnUpdateString, pack, zend_wikivfs_globals, wikivfs_globals)
 	STD_PHP_INI_ENTRY("wikivfs.root", "/mw", PHP_INI_SYSTEM, OnUpdateString, root, zend_wikivfs_globals, wikivfs_globals)
+	STD_PHP_INI_ENTRY("wikivfs.trace_log", "", PHP_INI_SYSTEM, OnUpdateString, trace_log, zend_wikivfs_globals, wikivfs_globals)
 	STD_PHP_INI_ENTRY("wikivfs.profile_log", "", PHP_INI_SYSTEM, OnUpdateString, profile_log, zend_wikivfs_globals, wikivfs_globals)
 PHP_INI_END()
 
@@ -518,8 +573,21 @@ static PHP_MINIT_FUNCTION(wikivfs)
 		while (wv_root_len > 1 && wv_root[wv_root_len - 1] == '/') wv_root[--wv_root_len] = 0;
 	}
 
+	if (!wv_base) return SUCCESS;
+
+	wv_plain_ops = php_plain_files_wrapper.wops;
+	php_plain_files_wrapper.wops = &wv_wrapper_ops;
+
 	wv_orig_resolve_path = zend_resolve_path;
 	zend_resolve_path = wv_resolve_path;
+
+	for (int i = 0; i < 5; i++) {
+		zend_function *f = zend_hash_str_find_ptr(CG(function_table), wv_access_names[i], strlen(wv_access_names[i]));
+		if (f && f->type == ZEND_INTERNAL_FUNCTION) {
+			wv_orig_access[i] = f->internal_function.handler;
+			f->internal_function.handler = wv_access_handlers[i];
+		}
+	}
 
 	zend_function *fn = zend_hash_str_find_ptr(CG(function_table), ZEND_STRL("realpath"));
 	if (fn && fn->type == ZEND_INTERNAL_FUNCTION) {
@@ -532,7 +600,11 @@ static PHP_MINIT_FUNCTION(wikivfs)
 static PHP_MSHUTDOWN_FUNCTION(wikivfs)
 {
 	UNREGISTER_INI_ENTRIES();
-	if (wv_base) munmap((void *)wv_base, wv_size);
+	if (wv_base) {
+		php_plain_files_wrapper.wops = wv_plain_ops;
+		zend_resolve_path = wv_orig_resolve_path;
+		munmap((void *)wv_base, wv_size);
+	}
 	return SUCCESS;
 }
 
@@ -542,11 +614,6 @@ static PHP_RINIT_FUNCTION(wikivfs)
 	memset(&wv_prof, 0, sizeof(wv_prof));
 	wv_profiling = WVG(profile_log) && *WVG(profile_log);
 	if (wv_profiling) wv_prof.start_ns = wv_now();
-
-	/* Take over local file access for this request. */
-	zend_string *file = ZSTR_KNOWN(ZEND_STR_FILE);
-	php_unregister_url_stream_wrapper_volatile(file);
-	php_register_url_stream_wrapper_volatile(file, &wv_wrapper);
 	return SUCCESS;
 }
 

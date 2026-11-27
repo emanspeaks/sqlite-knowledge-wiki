@@ -24,7 +24,32 @@ echo 'filter ', var_export(filter_var('a@example.org', FILTER_VALIDATE_EMAIL), t
 echo 'mbstring ', mb_strlen('Ünïcödé'), ' ', mb_strtoupper('straße'), ' ', mb_substr('日本語テキスト', 2, 3), ' ', bin2hex(mb_convert_encoding('é', 'ISO-8859-1', 'UTF-8')), "\n";
 echo 'tokenizer ', count(token_get_all('<?php echo 1 + 2;')), ' ', token_name(T_ECHO), "\n";
 echo 'session ', var_export(session_status() === PHP_SESSION_NONE, true), ' ', var_export(strlen(session_create_id()) >= 22, true), "\n";
-echo 'pdo ', implode(',', PDO::getAvailableDrivers()), "|\n";
+echo 'pdo ', implode(',', PDO::getAvailableDrivers()), "\n";
+echo 'zlib ', strlen(gzcompress(str_repeat('wiki ', 1000))) < 100 ? 'small' : 'big', ' ', gzuncompress(gzcompress('round trip')), ' ', bin2hex(substr(gzencode('x'), 0, 2)), "\n";
+
+// SQLite the way MediaWiki uses it: PDO, a full-text table, and a database
+// file that is opened read-only.
+$dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'php-smoke-' . bin2hex(random_bytes(4));
+mkdir($dir);
+$db = new PDO("sqlite:$dir/test.sqlite");
+$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$db->exec('CREATE TABLE page (id INTEGER PRIMARY KEY, title TEXT)');
+$db->exec('CREATE VIRTUAL TABLE searchindex USING FTS3(si_title, si_text)');
+$insert = $db->prepare('INSERT INTO page (title) VALUES (?)');
+foreach (['Falcon 9', 'Electron'] as $t) { $insert->execute([$t]); }
+$db->exec("INSERT INTO searchindex VALUES ('falcon 9', 'rocket has mass 549054'), ('electron', 'small rocket')");
+$hits = $db->query("SELECT si_title FROM searchindex WHERE searchindex MATCH 'rocket' ORDER BY si_title")->fetchAll(PDO::FETCH_COLUMN);
+$meta = $db->query('SELECT title FROM page')->getColumnMeta(0);
+echo 'pdo_sqlite ', $db->query('SELECT count(*) FROM page')->fetchColumn(), ' ', implode('+', $hits), ' ', $meta['table'] ?? '?', ' ', $db->query("SELECT json_extract('{\"a\":[1,2]}', '$.a[1]')")->fetchColumn(), "\n";
+$db = null;
+$before = hash_file('sha256', "$dir/test.sqlite");
+$ro = new SQLite3("$dir/test.sqlite", SQLITE3_OPEN_READONLY);
+$ro->enableExceptions(true);
+try { $ro->exec("INSERT INTO page (title) VALUES ('x')"); $w = 'written'; } catch (Exception $e) { $w = 'refused'; }
+echo 'sqlite3 ', $ro->querySingle('SELECT title FROM page WHERE id = 2'), ' ', $w, ' ', var_export($before === hash_file('sha256', "$dir/test.sqlite"), true), ' ', version_compare(SQLite3::version()['versionString'], '3.54.0', '>=') ? 'current' : 'old', "\n";
+$ro->close();
+unlink("$dir/test.sqlite");
+rmdir($dir);
 
 // Fibers switch stacks through the routines converted from PHP's own
 // Microsoft-syntax assembly, so exercise them properly: values passed both

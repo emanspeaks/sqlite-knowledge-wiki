@@ -7,7 +7,7 @@ spl 3,1,2 0
 random 16 43
 serialize a:1:{s:1:"k";d:1;}
 sprintf 003.1|ff|é--
-extensions bcmath,calendar,core,ctype,date,fileinfo,filter,hash,json,mbstring,pcre,pdo,random,reflection,session,spl,standard,tokenizer
+extensions bcmath,calendar,core,ctype,date,fileinfo,filter,hash,json,mbstring,pcre,pdo,pdo_sqlite,random,reflection,session,spl,sqlite3,standard,tokenizer,zlib
 bcmath 111111111011111111100 0.3333333333
 calendar 29 11/27/2026
 ctype true false
@@ -16,7 +16,10 @@ filter 'a@example.org' false
 mbstring 7 STRASSE 語テキ e9
 tokenizer 9 T_ECHO
 session true true
-pdo |
+pdo sqlite
+zlib small round trip 1f8b
+pdo_sqlite 2 electron+falcon 9 page 2
+sqlite3 Electron refused true current
 fiber basic 11 42 done:7 true
 fiber nested 1000 501500
 fiber exception ready rethrown:boom

@@ -61,6 +61,8 @@ const Extension = struct {
     /// Include directories relative to the PHP sources.
     include_dirs: []const []const u8 = &.{},
     flags: []const []const u8 = &.{},
+    /// Third-party libraries, by their name in build.zig.zon.
+    uses: []const []const u8 = &.{},
     /// Extra headers the extension expects its build to have generated.
     generated: []const Generated = &.{},
 
@@ -125,6 +127,14 @@ const extensions = [_]Extension{
         .config = "",
     },
     .{
+        .name = "pdo_sqlite",
+        .sources = &sources.pdo_sqlite,
+        .header = "ext/pdo_sqlite/php_pdo_sqlite.h",
+        .module = "phpext_pdo_sqlite_ptr",
+        .config = "#define HAVE_SQLITE3_COLUMN_TABLE_NAME 1\n#define HAVE_SQLITE3_CLOSE_V2 1\n",
+        .uses = &.{"sqlite"},
+    },
+    .{
         .name = "session",
         .sources = &sources.session,
         .header = "ext/session/php_session.h",
@@ -132,11 +142,30 @@ const extensions = [_]Extension{
         .config = "#define HAVE_PHP_SESSION 1\n",
     },
     .{
+        .name = "sqlite3",
+        .sources = &sources.sqlite3,
+        .header = "ext/sqlite3/php_sqlite3.h",
+        .module = "phpext_sqlite3_ptr",
+        .config = "#define HAVE_SQLITE3 1\n#define HAVE_SQLITE3_ERRSTR 1\n#define HAVE_SQLITE3_EXPANDED_SQL 1\n",
+        // SQLite is built without loadable extensions.
+        .flags = &.{"-DSQLITE_OMIT_LOAD_EXTENSION"},
+        .uses = &.{"sqlite"},
+    },
+    .{
         .name = "tokenizer",
         .sources = &sources.tokenizer,
         .header = "ext/tokenizer/php_tokenizer.h",
         .module = "phpext_tokenizer_ptr",
         .config = "#define HAVE_TOKENIZER 1\n",
+    },
+    .{
+        .name = "zlib",
+        .sources = &sources.zlib,
+        .header = "ext/zlib/php_zlib.h",
+        .module = "phpext_zlib_ptr",
+        .config = "#define HAVE_ZLIB_H 1\n#define HAVE_ZLIB 1\n",
+        .flags = &.{"-DZLIB_EXPORTS"},
+        .uses = &.{"zlib"},
     },
 };
 
@@ -155,6 +184,8 @@ const builtin_modules = [_][2][]const u8{
 const system_libs = [_][]const u8{
     "ws2_32", "kernel32", "advapi32", "shell32", "iphlpapi", "dnsapi",
     "psapi",  "bcrypt",   "ole32",    "user32",  "shlwapi",
+    // the smoke program's crash handler
+     "dbghelp",
 };
 
 pub fn build(b: *std.Build) void {
@@ -232,8 +263,14 @@ pub fn build(b: *std.Build) void {
         .generated = generated.getDirectory(),
     };
 
+    var libraries: std.StringHashMapUnmanaged(Library) = .empty;
+    libraries.put(arena, "zlib", zlib(b, target, optimize)) catch @panic("OOM");
+    libraries.put(arena, "sqlite", sqlite(b, target, optimize)) catch @panic("OOM");
+
     const php = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
     addPhpIncludes(b, php, includes);
+    // ext/standard reads compressed Flash files with zlib when it is there.
+    libraries.get("zlib").?.addTo(php);
     php.addCSourceFiles(.{ .root = src, .files = &sources.core, .flags = &php_flags });
     php.addCSourceFiles(.{
         .root = src,
@@ -266,6 +303,7 @@ pub fn build(b: *std.Build) void {
             m.addIncludePath(files.getDirectory());
         }
         for (ext.include_dirs) |dir| m.addIncludePath(src.path(b, dir));
+        for (ext.uses) |name| libraries.get(name).?.addTo(m);
         addPhpIncludes(b, m, includes);
         const flags = std.mem.concat(arena, []const u8, &.{ &php_flags, ext.flags }) catch @panic("OOM");
         m.addCSourceFiles(.{ .root = src, .files = ext.sources, .flags = flags });
@@ -282,6 +320,62 @@ pub fn build(b: *std.Build) void {
     smoke_mod.linkLibrary(lib);
     const smoke = b.addExecutable(.{ .name = "php-embed-smoke", .root_module = smoke_mod });
     b.installArtifact(smoke);
+}
+
+/// A third-party library built from its release in build.zig.zon.
+const Library = struct {
+    artifact: *std.Build.Step.Compile,
+    include: std.Build.LazyPath,
+
+    fn addTo(lib: Library, m: *std.Build.Module) void {
+        m.addIncludePath(lib.include);
+        m.linkLibrary(lib.artifact);
+    }
+};
+
+/// Flags for third-party C: no warnings, and no UBSan in Debug builds.
+const library_flags = [_][]const u8{ "-w", "-fno-sanitize=undefined" };
+
+fn zlib(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) Library {
+    const dep = b.dependency("zlib", .{});
+    const m = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
+    m.addCSourceFiles(.{
+        .root = dep.path(""),
+        .files = &.{
+            "adler32.c", "compress.c", "crc32.c",   "deflate.c",  "gzclose.c", "gzlib.c",   "gzread.c", "gzwrite.c",
+            "infback.c", "inffast.c",  "inflate.c", "inftrees.c", "trees.c",   "uncompr.c", "zutil.c",
+        },
+        .flags = &library_flags,
+    });
+    return .{
+        .artifact = b.addLibrary(.{ .name = "z", .linkage = .static, .root_module = m }),
+        .include = dep.path(""),
+    };
+}
+
+fn sqlite(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) Library {
+    const dep = b.dependency("sqlite", .{});
+    const m = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
+    m.addCSourceFile(.{
+        .file = dep.path("sqlite3.c"),
+        .flags = &(library_flags ++ [_][]const u8{
+            // MediaWiki's search index is an FTS3 table.
+            "-DSQLITE_ENABLE_FTS3",
+            "-DSQLITE_ENABLE_FTS3_PARENTHESIS",
+            "-DSQLITE_ENABLE_FTS4",
+            "-DSQLITE_ENABLE_FTS5",
+            "-DSQLITE_ENABLE_RTREE",
+            "-DSQLITE_ENABLE_MATH_FUNCTIONS",
+            // pdo_sqlite's column metadata
+            "-DSQLITE_ENABLE_COLUMN_METADATA",
+            "-DSQLITE_OMIT_LOAD_EXTENSION",
+            "-DSQLITE_DQS=0",
+        }),
+    });
+    return .{
+        .artifact = b.addLibrary(.{ .name = "sqlite3", .linkage = .static, .root_module = m }),
+        .include = dep.path(""),
+    };
 }
 
 const Includes = struct {
