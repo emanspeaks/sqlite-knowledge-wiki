@@ -134,7 +134,10 @@ case "${1:-}" in
         # read-only mode refuses logins through the API too (MediaWiki treats
         # them as writes), so the edit is tried anonymously: the read-only
         # check comes before the permission check
-        result=$(post --data-urlencode action=clientlogin --data-urlencode "username=$ADMIN_USER"             --data-urlencode "password=$ADMIN_PASSWORD" --data-urlencode logintoken=x             --data-urlencode "loginreturnurl=$WIKI/" | jq -r '.error.code // .clientlogin.status')
+        token=$(get --data-urlencode action=query --data-urlencode meta=tokens --data-urlencode type=login | jq -r .query.tokens.logintoken)
+        result=$(post --data-urlencode action=clientlogin --data-urlencode "username=$ADMIN_USER" \
+            --data-urlencode "password=$ADMIN_PASSWORD" --data-urlencode "logintoken=$token" \
+            --data-urlencode "loginreturnurl=$WIKI/" | jq -r '.error.code // .clientlogin.status')
         [ "$result" = readonly ] && pass "logins refused when read-only" || fail "read-only login: $result"
         token=$(csrf)
         result=$(post --data-urlencode action=edit --data-urlencode title=Refused --data-urlencode text=x \
