@@ -20,21 +20,24 @@ pub const Component = struct {
     /// Where it comes from, for a component not in build.zig.zon.
     source: []const u8 = "",
     source_note: []const u8 = "",
+    /// The file in the component's release that holds its licence, for a
+    /// fetched component. Empty where the release has none.
+    license_file: []const u8 = "",
 };
 
 /// Fetched and built by offline/php/build.zig into the offline viewer.
 pub const fetched = [_]Component{
-    .{ .dependency = "php", .name = "PHP", .version = "8.3.37", .license = "PHP-3.01", .supplier = "The PHP Group", .purpose = "The PHP interpreter, embedded in the offline viewer", .sha256 = "0237af84478b7a7649d3964153f1b8653d622550b846f56d63062de683fb86bb" },
-    .{ .dependency = "zlib", .name = "zlib", .version = "1.3.1", .license = "Zlib", .supplier = "Jean-loup Gailly and Mark Adler", .purpose = "Compression: PHP zlib extension, libpng", .sha256 = "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23" },
+    .{ .dependency = "php", .license_file = "LICENSE", .name = "PHP", .version = "8.3.37", .license = "PHP-3.01", .supplier = "The PHP Group", .purpose = "The PHP interpreter, embedded in the offline viewer", .sha256 = "0237af84478b7a7649d3964153f1b8653d622550b846f56d63062de683fb86bb" },
+    .{ .dependency = "zlib", .license_file = "LICENSE", .name = "zlib", .version = "1.3.1", .license = "Zlib", .supplier = "Jean-loup Gailly and Mark Adler", .purpose = "Compression: PHP zlib extension, libpng", .sha256 = "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23" },
     .{ .dependency = "sqlite", .name = "SQLite", .version = "3.54.1", .license = "blessing", .supplier = "SQLite Consortium", .purpose = "The wiki database engine: PHP sqlite3 and pdo_sqlite extensions", .sha256 = "0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9" },
-    .{ .dependency = "libxml2", .name = "libxml2", .version = "2.15.4", .license = "MIT", .supplier = "The GNOME Project", .purpose = "XML and HTML parsing: PHP dom, libxml, simplexml, xml, xmlreader, xmlwriter extensions", .sha256 = "98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821" },
-    .{ .dependency = "icu", .name = "ICU4C", .version = "79.1", .license = "Unicode-3.0", .supplier = "Unicode, Inc.", .purpose = "Unicode and locale support and data: PHP intl extension", .sha256 = "06fa63ecb521048f8082f12ad988f6b678d90cbd88aafce24cbc94902b191d99" },
-    .{ .dependency = "lua", .name = "Lua", .version = "5.1.5", .license = "MIT", .supplier = "Lua.org, PUC-Rio", .purpose = "Runs Scribunto modules", .sha256 = "2640fc56a795f29d28ef15e13c34a47e223960b0240e8cb0a82d9b0738695333" },
-    .{ .dependency = "luasandbox", .name = "LuaSandbox", .version = "4.1.3", .license = "MIT", .supplier = "Wikimedia Foundation", .purpose = "PHP extension that runs Lua in-process for Scribunto", .sha256 = "8d20420b19b71f23782077ec8f51d044d54b2e5e4356d91bae45aad07e93adf6" },
-    .{ .dependency = "libpng", .name = "libpng", .version = "1.6.59", .license = "libpng-2.0", .supplier = "The PNG Reference Library Authors", .purpose = "PNG images: PHP gd extension", .sha256 = "d80dd2a38a37f803cb9b6ac7b14bd6e74ddc3b654780a8380bdf93523fdb4389" },
-    .{ .dependency = "jpeg", .name = "libjpeg", .version = "9f", .license = "IJG", .supplier = "Independent JPEG Group", .purpose = "JPEG images: PHP gd extension", .sha256 = "04705c110cb2469caa79fb71fba3d7bf834914706e9641a4589485c1f832565b" },
-    .{ .dependency = "win_iconv", .name = "win-iconv", .version = "0.0.11", .license = "LicenseRef-public-domain", .supplier = "Yukihiro Nakadaira", .purpose = "Character set conversion: PHP iconv extension", .source_note = "git tag v0.0.11, commit 70a279dcfe6318bbe63e019e33b3230b55c19762" },
-    .{ .dependency = "oniguruma", .name = "Oniguruma", .version = "6.9.10", .license = "BSD-2-Clause", .supplier = "K. Kosako", .purpose = "Multibyte regular expressions: PHP mbstring extension", .sha256 = "2a5cfc5ae259e4e97f86b68dfffc152cdaffe94e2060b770cb827238d769fc05" },
+    .{ .dependency = "libxml2", .license_file = "Copyright", .name = "libxml2", .version = "2.15.4", .license = "MIT", .supplier = "The GNOME Project", .purpose = "XML and HTML parsing: PHP dom, libxml, simplexml, xml, xmlreader, xmlwriter extensions", .sha256 = "98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821" },
+    .{ .dependency = "icu", .license_file = "LICENSE", .name = "ICU4C", .version = "79.1", .license = "Unicode-3.0", .supplier = "Unicode, Inc.", .purpose = "Unicode and locale support and data: PHP intl extension", .sha256 = "06fa63ecb521048f8082f12ad988f6b678d90cbd88aafce24cbc94902b191d99" },
+    .{ .dependency = "lua", .license_file = "COPYRIGHT", .name = "Lua", .version = "5.1.5", .license = "MIT", .supplier = "Lua.org, PUC-Rio", .purpose = "Runs Scribunto modules", .sha256 = "2640fc56a795f29d28ef15e13c34a47e223960b0240e8cb0a82d9b0738695333" },
+    .{ .dependency = "luasandbox", .license_file = "LuaSandbox-4.1.3/COPYING", .name = "LuaSandbox", .version = "4.1.3", .license = "MIT", .supplier = "Wikimedia Foundation", .purpose = "PHP extension that runs Lua in-process for Scribunto", .sha256 = "8d20420b19b71f23782077ec8f51d044d54b2e5e4356d91bae45aad07e93adf6" },
+    .{ .dependency = "libpng", .license_file = "LICENSE", .name = "libpng", .version = "1.6.59", .license = "libpng-2.0", .supplier = "The PNG Reference Library Authors", .purpose = "PNG images: PHP gd extension", .sha256 = "d80dd2a38a37f803cb9b6ac7b14bd6e74ddc3b654780a8380bdf93523fdb4389" },
+    .{ .dependency = "jpeg", .license_file = "README", .name = "libjpeg", .version = "9f", .license = "IJG", .supplier = "Independent JPEG Group", .purpose = "JPEG images: PHP gd extension", .sha256 = "04705c110cb2469caa79fb71fba3d7bf834914706e9641a4589485c1f832565b" },
+    .{ .dependency = "win_iconv", .license_file = "readme.txt", .name = "win-iconv", .version = "0.0.11", .license = "LicenseRef-public-domain", .supplier = "Yukihiro Nakadaira", .purpose = "Character set conversion: PHP iconv extension", .source_note = "git tag v0.0.11, commit 70a279dcfe6318bbe63e019e33b3230b55c19762" },
+    .{ .dependency = "oniguruma", .license_file = "COPYING", .name = "Oniguruma", .version = "6.9.10", .license = "BSD-2-Clause", .supplier = "K. Kosako", .purpose = "Multibyte regular expressions: PHP mbstring extension", .sha256 = "2a5cfc5ae259e4e97f86b68dfffc152cdaffe94e2060b770cb827238d769fc05" },
 };
 
 /// Libraries that come inside the PHP release and are compiled with it. The

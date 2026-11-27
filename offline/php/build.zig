@@ -553,6 +553,41 @@ pub fn build(b: *std.Build) void {
     const smoke = b.addExecutable(.{ .name = "php-embed-smoke", .root_module = smoke_mod });
     b.installArtifact(smoke);
 
+    // `zig build licenses`: every component's licence text, zig-out/licenses/.
+    // They go out with the program.
+    const licenses_step = b.step("licenses", "Collect the licence texts of the third-party components");
+    inline for (components.fetched) |c| {
+        // PHP's are taken from the prepared sources below.
+        if (c.license_file.len != 0 and !std.mem.eql(u8, c.dependency.?, "php")) {
+            const file = b.dependency(c.dependency.?, .{}).path(c.license_file);
+            licenses_step.dependOn(&b.addInstallFile(file, b.fmt("licenses/{s}.txt", .{c.name})).step);
+        }
+    }
+    for ([_][2][]const u8{
+        .{ "LICENSE", "PHP" },
+        .{ "README.REDIST.BINS", "PHP bundled libraries" },
+        .{ "Zend/LICENSE", "Zend Engine" },
+        .{ "Zend/asm/LICENSE", "Boost.Context" },
+        .{ "ext/date/lib/LICENSE.rst", "timelib" },
+        .{ "ext/fileinfo/libmagic/LICENSE", "libmagic" },
+        .{ "ext/mbstring/libmbfl/LICENSE", "libmbfl" },
+        .{ "ext/bcmath/libbcmath/LICENSE", "libbcmath" },
+    }) |entry| {
+        licenses_step.dependOn(&b.addInstallFile(src.path(b, entry[0]), b.fmt("licenses/{s}.txt", .{entry[1]})).step);
+    }
+    const license_notes = b.addWriteFiles();
+    licenses_step.dependOn(&b.addInstallFile(license_notes.add("SQLite.txt",
+        \\SQLite is in the public domain. Its authors disclaim copyright; in place
+        \\of a legal notice its sources carry this blessing:
+        \\
+        \\    May you do good and not evil.
+        \\    May you find forgiveness for yourself and forgive others.
+        \\    May you share freely, never taking more than you give.
+        \\
+        \\See https://www.sqlite.org/copyright.html
+        \\
+    ), "licenses/SQLite.txt").step);
+
     // `zig build sbom`: the software bill of materials, zig-out/sbom.cdx.json.
     const sbom_files = b.addWriteFiles();
     const sbom_file = sbom_files.add("sbom.cdx.json", sbom(b));

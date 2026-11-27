@@ -40,6 +40,8 @@ jobs:
     name: Run on Windows
     runs-on: windows-latest
     needs: cross-build
+    # The tests take seconds; a hang should not hold a runner for hours.
+    timeout-minutes: 10
     defaults:
       run:
         shell: bash
@@ -51,14 +53,12 @@ jobs:
           path: cross
       - name: Test the Debug build
         run: |
-          cross/debug/bin/php-embed-smoke.exe offline/php/test/smoke.php > debug.out || { cat debug.out; exit 1; }
-          cat debug.out
+          cross/debug/bin/php-embed-smoke.exe offline/php/test/smoke.php | tee debug.out
           diff --strip-trailing-cr offline/php/test/smoke.expected debug.out
       - name: Test the ReleaseFast build
         if: always()
         run: |
-          cross/release/bin/php-embed-smoke.exe offline/php/test/smoke.php > release.out || { cat release.out; exit 1; }
-          cat release.out
+          cross/release/bin/php-embed-smoke.exe offline/php/test/smoke.php | tee release.out
           diff --strip-trailing-cr offline/php/test/smoke.expected release.out
 
   windows-native:

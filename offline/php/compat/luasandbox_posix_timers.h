@@ -6,13 +6,14 @@
  * locks, semaphores and clocks LuaSandbox also uses) does not provide it.
  * These are the functions LuaSandbox calls, implemented on Win32 in
  * luasandbox_posix_timers.c. Only what LuaSandbox uses is supported:
- * SIGEV_THREAD notification, on the CPU time of the thread that created
- * the timer.
+ * SIGEV_THREAD notification, on a thread CPU clock from
+ * pthread_getcpuclockid().
  */
 #ifndef LUASANDBOX_POSIX_TIMERS_H
 #define LUASANDBOX_POSIX_TIMERS_H
 
 #include <time.h>
+#include <pthread.h>
 #include <pthread_time.h>
 
 typedef struct luasandbox_win32_timer *timer_t;
@@ -33,6 +34,18 @@ struct sigevent {
 #define SIGEV_THREAD 2
 
 /* struct itimerspec and clockid_t come from MinGW-w64's pthread_time.h. */
+/* MinGW-w64's pthread.h defines pthread_getcpuclockid() as "not supported",
+ * and its clock_gettime() can only read the CPU time of the calling thread.
+ * LuaSandbox asks for the Lua thread's CPU clock and reads it from the timer
+ * thread too, so both are replaced here: the clock id names a thread, and
+ * clock_gettime() on such an id reads that thread's CPU time from anywhere.
+ * Other clock ids go to the real clock_gettime(). */
+int luasandbox_win32_getcpuclockid(clockid_t *clock_id);
+int luasandbox_win32_clock_gettime(clockid_t clock_id, struct timespec *ts);
+#undef pthread_getcpuclockid
+#define pthread_getcpuclockid(thread, clock_id) luasandbox_win32_getcpuclockid(clock_id)
+#define clock_gettime luasandbox_win32_clock_gettime
+
 int timer_create(clockid_t clock_id, struct sigevent *event, timer_t *timer);
 int timer_settime(timer_t timer, int flags, const struct itimerspec *value, struct itimerspec *old_value);
 int timer_gettime(timer_t timer, struct itimerspec *value);

@@ -4,12 +4,14 @@
 #include <stdlib.h>
 #include "luasandbox_posix_timers.h"
 
+/* This file needs the real clock_gettime(). */
+#undef clock_gettime
+
 /* Times are in 100 ns units, as GetThreadTimes() reports them. */
 typedef unsigned long long ticks;
 
 struct luasandbox_win32_timer {
 	HANDLE target;   /* the thread whose CPU time is measured */
-	HANDLE worker;   /* the thread that watches it and delivers the notification */
 	HANDLE wake;     /* set when the timer is armed, disarmed or deleted */
 	CRITICAL_SECTION lock;
 	void (*notify)(union sigval);
@@ -41,6 +43,64 @@ static ticks cpu_time(HANDLE thread)
 		+ (((ticks)user.dwHighDateTime << 32) | user.dwLowDateTime);
 }
 
+/* Thread CPU clocks: clock id FIRST_THREAD_CLOCK + n names the thread in
+ * slot n. A thread's slot is made the first time it asks for its clock and
+ * kept for the life of the process; PHP runs on one thread here, so this is
+ * one handle. */
+#define FIRST_THREAD_CLOCK 1000
+#define MAX_THREAD_CLOCKS 64
+static struct { DWORD id; HANDLE handle; } thread_clocks[MAX_THREAD_CLOCKS];
+static LONG thread_clock_count;
+static SRWLOCK thread_clocks_lock = SRWLOCK_INIT;
+
+static HANDLE thread_of_clock(clockid_t clock_id)
+{
+	int n = (int)clock_id - FIRST_THREAD_CLOCK;
+	HANDLE h = NULL;
+	AcquireSRWLockShared(&thread_clocks_lock);
+	if (n >= 0 && n < thread_clock_count) h = thread_clocks[n].handle;
+	ReleaseSRWLockShared(&thread_clocks_lock);
+	return h;
+}
+
+int luasandbox_win32_getcpuclockid(clockid_t *clock_id)
+{
+	DWORD id = GetCurrentThreadId();
+	int result = EAGAIN;
+	AcquireSRWLockExclusive(&thread_clocks_lock);
+	int n;
+	for (n = 0; n < thread_clock_count; n++) {
+		if (thread_clocks[n].id == id) break;
+	}
+	if (n == thread_clock_count && n < MAX_THREAD_CLOCKS
+		&& DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(),
+			&thread_clocks[n].handle, THREAD_QUERY_INFORMATION, FALSE, 0)) {
+		thread_clocks[n].id = id;
+		thread_clock_count++;
+	}
+	if (n < thread_clock_count) {
+		*clock_id = (clockid_t)(FIRST_THREAD_CLOCK + n);
+		result = 0;
+	}
+	ReleaseSRWLockExclusive(&thread_clocks_lock);
+	return result;
+}
+
+int luasandbox_win32_clock_gettime(clockid_t clock_id, struct timespec *ts)
+{
+	HANDLE thread = clock_id == CLOCK_THREAD_CPUTIME_ID ? GetCurrentThread() : thread_of_clock(clock_id);
+	if (!thread) return clock_gettime(clock_id, ts);
+	to_timespec(cpu_time(thread), ts);
+	return 0;
+}
+
+static void destroy(timer_t t)
+{
+	CloseHandle(t->wake);
+	DeleteCriticalSection(&t->lock);
+	free(t);
+}
+
 static DWORD WINAPI watch(void *arg)
 {
 	timer_t t = arg;
@@ -52,6 +112,7 @@ static DWORD WINAPI watch(void *arg)
 		EnterCriticalSection(&t->lock);
 		if (t->quit) {
 			LeaveCriticalSection(&t->lock);
+			destroy(t);
 			return 0;
 		}
 		if (t->armed) {
@@ -85,8 +146,8 @@ static DWORD WINAPI watch(void *arg)
 
 int timer_create(clockid_t clock_id, struct sigevent *event, timer_t *timer)
 {
-	(void)clock_id;
-	if (!event || event->sigev_notify != SIGEV_THREAD || !event->sigev_notify_function) {
+	HANDLE target = thread_of_clock(clock_id);
+	if (!target || !event || event->sigev_notify != SIGEV_THREAD || !event->sigev_notify_function) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -95,22 +156,21 @@ int timer_create(clockid_t clock_id, struct sigevent *event, timer_t *timer)
 		errno = EAGAIN;
 		return -1;
 	}
+	t->target = target; /* owned by the clock table, not by the timer */
 	t->notify = event->sigev_notify_function;
 	t->value = event->sigev_value;
 	InitializeCriticalSection(&t->lock);
 	t->wake = CreateEvent(NULL, FALSE, FALSE, NULL);
-	if (t->wake && DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(),
-			&t->target, THREAD_QUERY_INFORMATION, FALSE, 0)) {
-		t->worker = CreateThread(NULL, 0, watch, t, 0, NULL);
-	}
-	if (!t->worker) {
-		if (t->target) CloseHandle(t->target);
+	HANDLE worker = t->wake ? CreateThread(NULL, 0, watch, t, 0, NULL) : NULL;
+	if (!worker) {
 		if (t->wake) CloseHandle(t->wake);
 		DeleteCriticalSection(&t->lock);
 		free(t);
 		errno = EAGAIN;
 		return -1;
 	}
+	/* The watcher runs detached and frees the timer itself, as below. */
+	CloseHandle(worker);
 	*timer = t;
 	return 0;
 }
@@ -152,6 +212,10 @@ int timer_gettime(timer_t t, struct itimerspec *value)
 	return 0;
 }
 
+/* Does not wait for the watcher: as with POSIX timers, a notification that
+ * is already running may finish after this returns. LuaSandbox deletes a
+ * timer while holding the semaphore its notification waits for, so waiting
+ * here could deadlock. The watcher frees the timer when it next looks. */
 int timer_delete(timer_t t)
 {
 	if (!t) {
@@ -160,14 +224,9 @@ int timer_delete(timer_t t)
 	}
 	EnterCriticalSection(&t->lock);
 	t->quit = 1;
+	t->armed = 0;
 	LeaveCriticalSection(&t->lock);
 	SetEvent(t->wake);
-	WaitForSingleObject(t->worker, INFINITE);
-	CloseHandle(t->worker);
-	CloseHandle(t->target);
-	CloseHandle(t->wake);
-	DeleteCriticalSection(&t->lock);
-	free(t);
 	return 0;
 }
 

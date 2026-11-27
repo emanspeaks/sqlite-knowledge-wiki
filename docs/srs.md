@@ -59,7 +59,7 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 
 %requirement[SRS-025 functional verification=inspection derives=SYS-007] The offline viewer shall be one executable file containing the PHP runtime, the MediaWiki code and its settings. MediaWiki's code shall be read from inside the executable; files may be cached in the scratch folder.
 
-%requirement[SRS-026 functional verification=test derives=SYS-006] The settings built into the offline viewer shall match those of the container image it was built with, and the viewer shall refuse a database whose MediaWiki version does not match its own.
+%requirement[SRS-026 functional verification=test derives=SYS-006] The offline viewer shall have built in every setting the container image uses, with the read-only offline profile on top, and shall refuse a database whose MediaWiki version does not match its own.
 
 %requirement[SRS-027 functional verification=demonstration derives=SYS-012] Scribunto Lua modules shall run in the offline viewer without starting an external program.
 
@@ -71,7 +71,7 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 
 %requirement[SRS-029 functional verification=test derives=SYS-012] Thumbnails shall be generated offline with PHP's own image library; ImageMagick shall not be required.
 
-%requirement[SRS-030 interface verification=test derives=SYS-012] Features that need Python (syntax highlighting) shall use the Python found on the system path, or the one named by an environment variable when it is set. The offline viewer shall not supply Python.
+%requirement[SRS-030 interface verification=test derives=SYS-012] Features that need Python (syntax highlighting) shall use the interpreter named by the environment variable `MEDIAWIKI_PYTHON` when it is set, and otherwise the Python found on the system path. The offline viewer shall not supply Python.
 
 ### Media store
 
@@ -83,7 +83,7 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 
 %requirement[SRS-043 functional verification=test derives=SYS-014] The FUSE daemon shall be supervised and restarted if it exits.
 
-%requirement[SRS-044 functional verification=test derives=SYS-014,SYS-008] The offline viewer shall read the media file directly, without a mount and without privileges beyond those of a basic user.
+%requirement[SRS-044 functional verification=test derives=SYS-014,SYS-008] The offline viewer shall read media from the single-file media store that accompanies the database, directly, without a mount and without privileges beyond those of a basic user. Its first release shall do so; it shall not fall back to a folder of loose files.
 
 %requirement[SRS-045 functional verification=inspection derives=SYS-014] Generated thumbnails shall be kept outside the media file: in a cache directory on the server and in the scratch folder offline.
 
@@ -115,9 +115,9 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 
 %requirement[SRS-081 constraint verification=inspection derives=SYS-018,SYS-019] The PHP runtime of the offline viewer shall be built by the project's own `build.zig` from the official signed PHP release, fetched as a dependency pinned by hash in `build.zig.zon`.
 
-%requirement[SRS-082 constraint verification=inspection derives=SYS-018] Every third-party library linked into the offline viewer or the media store shall be vendored at a pinned version and built from source by the project's build.
+%requirement[SRS-082 constraint verification=inspection derives=SYS-018] Every third-party library linked into the offline viewer or the media store shall be fetched at build time from its official release, pinned by content hash in the build manifest, and built from source by the project's build.
 
-%requirement[SRS-083 constraint verification=inspection derives=SYS-020] Release builds of the offline viewer shall be code-signed.
+%requirement[SRS-083 constraint verification=inspection derives=SYS-020] Released builds of the offline viewer shall be code-signed in the release pipeline, with a trusted timestamp, and the pipeline shall verify the signature.
 
 %requirement[SRS-084 constraint verification=inspection derives=SYS-015 rationale="The owner controls the host VM."] The wiki container may be granted the capability and device access that FUSE needs.
 
@@ -132,6 +132,10 @@ Higher-level requirements are in [system-requirements.md](system-requirements.md
 %requirement[SRS-090 constraint verification=inspection derives=SYS-018] Each release shall include a software bill of materials naming every third-party component, its version, licence and source. It shall be generated from the build's own dependency manifest.
 
 %requirement[SRS-091 constraint verification=inspection derives=SYS-021] The project's own code shall be under the MIT licence.
+
+%requirement[SRS-092 constraint verification=inspection derives=SYS-018] A release shall carry SHA-256 checksums of its files and a detached GPG signature of the checksum file, verifiable with a public key kept in the repository.
+
+%requirement[SRS-093 constraint verification=inspection derives=SYS-021] The project's licence shall be a release artifact, and the package of the offline viewer shall contain the licence text of every third-party component in it.
 
 %requirement[SRS-085 constraint verification=inspection derives=SYS-021] Requirements shall be kept as Skein items in this repository and `skein check` shall report no problems.
 

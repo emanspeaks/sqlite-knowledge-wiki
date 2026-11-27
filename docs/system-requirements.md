@@ -49,7 +49,7 @@ What the project owner has asked of the system, as stated during design discussi
 
 ## Supply chain and build
 
-%system[SYS-018] Third-party code shall be vendored and built from sources the project has cleared; prebuilt binaries shall be accepted only from the official publisher of the software.
+%system[SYS-018] Third-party code shall be built from the official sources of pinned versions, fetched at build time and checked against a recorded hash; the sources shall not be committed to this repository. Prebuilt binaries shall be accepted only from the official publisher of the software.
 
 %system[SYS-019] Native components shall be built with the Zig build system as the C/C++ compiler and build tool.
 
