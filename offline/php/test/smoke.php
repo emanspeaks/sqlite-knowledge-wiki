@@ -88,6 +88,11 @@ $px = imagecolorsforindex($thumb, imagecolorat($thumb, 8, 6));
 $info = getimagesizefromstring($png);
 echo 'gd ', bin2hex(substr($png, 1, 3)), ' ', bin2hex(substr($jpg, 0, 2)), ' ', imagesx($thumb), 'x', imagesy($thumb), ' ', $px['red'] > 180 && $px['green'] < 60 ? 'red' : 'wrong', ' ', $info[0], 'x', $info[1], ' ', $info['mime'], "\n";
 
+// intl: ICU and its built-in data.
+$words = ['zebra', 'Äpfel', 'apple', 'Zürich'];
+(new Collator('de_DE'))->sort($words);
+echo 'intl ', implode(',', $words), ' ', (new NumberFormatter('en_US', NumberFormatter::DECIMAL))->format(1234567.5), ' ', (new NumberFormatter('de_DE', NumberFormatter::DECIMAL))->format(1234567.5), ' ', strlen(Normalizer::normalize("e\u{301}", Normalizer::FORM_C)), ' ', Transliterator::create('Any-Latin; Latin-ASCII')->transliterate('Москва'), ' ', idn_to_ascii('bücher.de'), ' ', IntlDateFormatter::formatObject(new DateTime('2026-11-27 12:00:00', new DateTimeZone('UTC')), 'EEEE d MMMM y', 'fr_FR'), ' ', explode('.', INTL_ICU_VERSION)[0], ' ', count(ResourceBundle::getLocales('')) > 500 ? 'locales' : 'few', "\n";
+
 // OPcache: compile a script into the cache and find it there.
 $cached = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'php-smoke-' . bin2hex(random_bytes(4)) . '.php';
 file_put_contents($cached, '<?php return 6 * 7;');

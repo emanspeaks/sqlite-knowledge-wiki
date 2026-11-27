@@ -9,6 +9,7 @@
 //!   zig build -Doptimize=ReleaseFast
 const std = @import("std");
 const sources = @import("sources.zig");
+const icu_sources = @import("icu_sources.zig");
 
 /// Flags for every PHP source file.
 const php_flags = [_][]const u8{
@@ -72,6 +73,8 @@ const Extension = struct {
     /// build.zig.zon and the directory in it that holds the sources.
     package: ?[]const u8 = null,
     package_dir: []const u8 = "",
+    /// Whether some of the sources are C++.
+    cxx: bool = false,
     /// Third-party libraries, by their name in build.zig.zon.
     uses: []const []const u8 = &.{},
     /// Extra headers the extension expects its build to have generated.
@@ -184,6 +187,23 @@ const extensions = [_]Extension{
         .config = "#define HAVE_ICONV 1\n#define HAVE_LIBICONV 1\n#define ICONV_ALIASED_LIBICONV 1\n#define PHP_ICONV_IMPL \"\\\"libiconv\\\"\"\n",
         .flags = &.{"-DPHP_ICONV_EXPORTS"},
         .uses = &.{"libiconv"},
+    },
+    .{
+        .name = "intl",
+        .sources = &sources.intl,
+        .header = "ext/intl/php_intl.h",
+        .module = "phpext_intl_ptr",
+        .config = "#define HAVE_INTL 1\n",
+        .include_dirs = &.{"ext/intl"},
+        .flags = &.{
+            "-DU_STATIC_IMPLEMENTATION",
+            "-DUNISTR_FROM_CHAR_EXPLICIT=explicit",
+            "-DUNISTR_FROM_STRING_EXPLICIT=explicit",
+            "-DU_NO_DEFAULT_INCLUDE_UTF_HEADERS=1",
+            "-DU_HIDE_OBSOLETE_UTF_OLD_H=1",
+        },
+        .cxx = true,
+        .uses = &.{"icu"},
     },
     .{
         // Scribunto's Lua engine, in-process. On Windows it has no CPU-time
@@ -443,6 +463,7 @@ pub fn build(b: *std.Build) void {
     libraries.put(arena, "libiconv", libiconv(b, target, optimize)) catch @panic("OOM");
     libraries.put(arena, "libpng", libpng(b, target, optimize, libraries.get("zlib").?)) catch @panic("OOM");
     libraries.put(arena, "jpeg", jpeg(b, target, optimize)) catch @panic("OOM");
+    libraries.put(arena, "icu", icu(b, target, optimize)) catch @panic("OOM");
 
     const php = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
     addPhpIncludes(b, php, includes);
@@ -491,7 +512,21 @@ pub fn build(b: *std.Build) void {
         addPhpIncludes(b, m, includes);
         const flags = std.mem.concat(arena, []const u8, &.{ &php_flags, ext.flags }) catch @panic("OOM");
         const root = if (ext.package) |package| b.dependency(package, .{}).path(ext.package_dir) else src;
-        m.addCSourceFiles(.{ .root = root, .files = ext.sources, .flags = flags });
+        if (ext.cxx) {
+            // -fms-extensions is for PHP's C; the C++ sources get C++17, which ICU's headers need.
+            var c_files: std.ArrayList([]const u8) = .empty;
+            var cxx_files: std.ArrayList([]const u8) = .empty;
+            for (ext.sources) |file| {
+                const list = if (std.mem.endsWith(u8, file, ".cpp")) &cxx_files else &c_files;
+                list.append(arena, file) catch @panic("OOM");
+            }
+            const cxx_flags = std.mem.concat(arena, []const u8, &.{ flags, &.{"-std=c++17"} }) catch @panic("OOM");
+            m.addCSourceFiles(.{ .root = root, .files = c_files.items, .flags = flags });
+            m.addCSourceFiles(.{ .root = root, .files = cxx_files.items, .flags = cxx_flags });
+            m.link_libcpp = true;
+        } else {
+            m.addCSourceFiles(.{ .root = root, .files = ext.sources, .flags = flags });
+        }
         php.linkLibrary(b.addLibrary(.{ .name = b.fmt("php_{s}", .{ext.name}), .linkage = .static, .root_module = m }));
     }
 
@@ -513,12 +548,14 @@ const Library = struct {
     include: std.Build.LazyPath,
     /// A header the library's own configure step would have generated.
     config_header: ?*std.Build.Step.ConfigHeader = null,
-    /// A directory of such headers.
+    /// More header directories.
     extra_include: ?std.Build.LazyPath = null,
+    extra_include2: ?std.Build.LazyPath = null,
 
     fn addTo(lib: Library, m: *std.Build.Module) void {
         m.addIncludePath(lib.include);
         if (lib.extra_include) |dir| m.addIncludePath(dir);
+        if (lib.extra_include2) |dir| m.addIncludePath(dir);
         if (lib.config_header) |h| m.addConfigHeader(h);
         m.linkLibrary(lib.artifact);
     }
@@ -566,6 +603,62 @@ fn sqlite(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin
     return .{
         .artifact = b.addLibrary(.{ .name = "sqlite3", .linkage = .static, .root_module = m }),
         .include = dep.path(""),
+    };
+}
+
+/// ICU's common, i18n and io libraries with ICU's data built in, as one static
+/// library. The data is the prebuilt archive the ICU release ships
+/// (source/data/in/icudt79l.dat), placed in the program by the assembler.
+fn icu(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) Library {
+    const dep = b.dependency("icu", .{});
+    const flags = [_][]const u8{
+        "-w",
+        "-fno-sanitize=undefined",
+        "-std=c++17",
+        "-fno-exceptions",
+        "-DU_STATIC_IMPLEMENTATION",
+        "-DU_ENABLE_DYLOAD=0",
+        "-DHAVE_DLOPEN=0",
+        "-DU_HAVE_STRTOD_L=0",
+        "-DU_ATTRIBUTE_DEPRECATED=",
+    };
+    const m = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true, .link_libcpp = true });
+    m.addIncludePath(dep.path("source/common"));
+    m.addIncludePath(dep.path("source/i18n"));
+    m.addCSourceFiles(.{
+        .root = dep.path("source/common"),
+        .files = &icu_sources.common,
+        .flags = &(flags ++ [_][]const u8{"-DU_COMMON_IMPLEMENTATION"}),
+    });
+    m.addCSourceFiles(.{
+        .root = dep.path("source/i18n"),
+        .files = &icu_sources.i18n,
+        .flags = &(flags ++ [_][]const u8{"-DU_I18N_IMPLEMENTATION"}),
+    });
+    m.addIncludePath(dep.path("source/io"));
+    m.addCSourceFiles(.{
+        .root = dep.path("source/io"),
+        .files = &icu_sources.io,
+        .flags = &(flags ++ [_][]const u8{"-DU_IO_IMPLEMENTATION"}),
+    });
+    // icudt79_dat is the symbol ICU looks for (U_ICUDATA_ENTRY_POINT).
+    const data = b.addWriteFiles();
+    const data_s = data.add("icudata.S",
+        \\    .section .rdata,"dr"
+        \\    .globl icudt79_dat
+        \\    .balign 16
+        \\icudt79_dat:
+        \\    .incbin "icudt79l.dat"
+        \\
+    );
+    _ = data.addCopyFile(dep.path("source/data/in/icudt79l.dat"), "icudt79l.dat");
+    m.addIncludePath(data.getDirectory());
+    m.addAssemblyFile(data_s);
+    return .{
+        .artifact = b.addLibrary(.{ .name = "icu", .linkage = .static, .root_module = m }),
+        .include = dep.path("source/common"),
+        .extra_include = dep.path("source/i18n"),
+        .extra_include2 = dep.path("source/io"),
     };
 }
 

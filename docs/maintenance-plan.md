@@ -48,6 +48,8 @@ Upgrade intervals and their tracking; the equipment and labs to verify changes; 
 | Stand-ins for headers PHP's Windows build generates | `compat/timelib_config.h`, `compat/wsyslog.h` | PHP changes `ext/date/config.w32` or `win32/build/wsyslog.mc`. |
 | Process start-up that PHP's DLL entry point does (clock function, file I/O helpers) | `compat/static_init.inc` | PHP changes `win32/dllmain.c`. A static build never runs `DllMain`, so anything added there must be added here. |
 | Source lists, feature switches and config headers of each library | the library functions in `build.zig` | That library changes. Compare with its own build files. |
+| ICU's source file lists | `icu_sources.zig` | ICU changes. Copy from `source/common/sources.txt`, `source/i18n/sources.txt` and `source/io/sources.txt`. |
+| The ICU version in the data symbol and file name (`icudt79`) | `icu()` in `build.zig` | ICU changes. |
 | The version string of libxml2 | `libxml2()` in `build.zig` | libxml2 changes. |
 | Expected test output | `test/smoke.expected`, made by `test/make-expected.sh` | A check is added, or a version it prints changes. |
 
