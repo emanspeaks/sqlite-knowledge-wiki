@@ -16,10 +16,6 @@
       "**/zig-cache*/**": true,
       "**/zig-out/**": true,
     },
-    "search.exclude": {
-      // an external standard's text, read-only
-      "standards/**": true,
-    },
     "files.associations": {
       "VERSION": "plaintext",
       ".local-gitignore": "gitignore",
@@ -60,6 +56,17 @@
     // no CMake project here; the C dependencies carry a CMakeLists.txt
     "cmake.ignoreCMakeListsMissing": true,
     "cmake.configureOnOpen": false,
+    "php.validate.executablePath": "C:/exe/php/latest/php.exe",
+    "php.executablePath": "C:/exe/php/latest/php.exe",
+    "php.debug.executablePath": "C:/exe/php/latest/php.exe",
+    // php-intellisense's own glob library: a trailing `/**` matches one level
+    // only, so `/**/*` is what reaches every file below
+    "php.files.exclude": [
+      "**/.zig-cache/**/*",
+      "**/zig-pkg/**/*",
+      "**/zig-cache*/**/*",
+      "**/zig-out/**/*",
+    ],
   },
   "tasks": {
     "version": "2.0.0",

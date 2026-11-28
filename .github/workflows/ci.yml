@@ -72,8 +72,8 @@ defaults:
 env:
   ZIG_VERSION: 0.17.1
   # the released skein that checks the requirements, and its archive's SHA-256
-  SKEIN_VERSION: 0.1.1
-  SKEIN_SHA256: 26a539071fead0bd27208d41c50017fce78045578fa5558711f1ce3f3342acac
+  SKEIN_VERSION: 0.2.0
+  SKEIN_SHA256: 8b0a7c6d9e3977a486add20c1cde7108ee66cb74ec717968a93c10ce45f6dccf
 
 jobs:
   changes:
